@@ -1,0 +1,2 @@
+#!/bin/sh
+epiphany -n "http://www.wordreference.com/enfr/$1"
