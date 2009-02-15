@@ -1,0 +1,16 @@
+#!/bin/sh
+
+cmd="epiphany -n"
+
+# make sure epiphany is installed
+if ! which epiphany > /dev/null; then
+	cmd=xdg-open
+fi
+
+if [ "$1" = "" ]; then
+	echo "tfd WORD"
+	exit 2
+fi
+
+$cmd http://tfd.com/$1 > /dev/null 2>&1 &
+
