@@ -1,0 +1,25 @@
+#!/bin/bash
+
+date=$(date "+%F")
+day=$(date "+%a")
+
+case $day in
+	Mon | Wed | Fri)
+		dstamp=$date.${day:0:1};;
+	*)
+		dstamp=$date.${day:0:2};;
+esac
+
+case "$1" in
+	gedit)
+		cmd=gedit;;
+	pyroom)
+		cmd=pyroom;;
+	vim)
+		cmd=vim;;
+	*)
+		cmd=vim;;
+esac
+
+$cmd $dstamp.txt
+
