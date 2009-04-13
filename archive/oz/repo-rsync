@@ -1,0 +1,10 @@
+#!/bin/bash
+
+if [ "$1" = "run" ]; then
+	args=""
+else
+	args="-n"
+fi
+
+rsync -avcO $args --delete --exclude=".bzr" --exclude=".hg*" ./ ../copy/
+
