@@ -1,5 +1,4 @@
 #!/bin/bash
-
 set -e
 
 PRIVATE=~/Private
@@ -7,6 +6,11 @@ PRIVATE=~/Private
 if [ -z "$1" -o ! -d "$1" ]; then
 	echo "mv-private DIRECTORY"
 	exit 2
+fi
+
+if [ -L "$1" ]; then
+	echo "Error: $1 is a symbolic link."
+	exit 5
 fi
 
 echo "About to move $1 to $PRIVATE/"
