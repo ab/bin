@@ -1,0 +1,30 @@
+#!/bin/bash
+
+set -e
+
+PRIVATE=~/Private
+
+if [ -z "$1" -o ! -d "$1" ]; then
+	echo "mv-private DIRECTORY"
+	exit 2
+fi
+
+echo "About to move $1 to $PRIVATE/"
+read -p "Press enter to continue..."
+
+cp -av "$1" "$PRIVATE/"
+
+read -p "Copy finished. Ready to shred..."
+
+if [ ! "$2" = "--skip-shred" ]; then
+	find "$1" -type f -print0 | xargs -0 shred -uv
+	echo "Deleting directories..."
+	find "$1" -type d -print -delete
+fi
+
+echo "Creating link to new location..."
+
+ln -sv "$PRIVATE/$(basename "$1")" "$(dirname "$1")/$(basename "$1")"
+
+# basename used for stripping out trailing /, etc.
+
