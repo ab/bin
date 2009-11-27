@@ -1,0 +1,4 @@
+#!/bin/sh
+ssh eggplant '/usr/sbin/wol -i 192.168.1.255 00:1f:d0:23:c6:48;
+/usr/sbin/wol -i 192.168.1.255 00:1f:d0:23:c6:89'
+
