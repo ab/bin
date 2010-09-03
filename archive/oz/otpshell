@@ -1,0 +1,107 @@
+#!/usr/bin/python
+
+import crypt
+import os
+import pwd
+import shutil
+import stat
+import string
+import sys
+import tempfile
+from getpass import getpass
+
+VERSION = '1.02'
+
+BACKEND='FILE'
+rcfile = os.path.expanduser('~/.otpshellrc')
+
+def fail(message):
+	print 'Error:', message
+	sys.exit(1)
+
+def check_hash(plain, hash):
+	salt = '$'.join(hash.split('$')[0:3])   # extract salt from hash
+	return hash == crypt.crypt(plain, salt)
+
+def gen_salt(length):
+	chars = './' + string.digits + string.letters
+	def char_map(val):
+		return chars[ord(val) % 64]
+	return ''.join(map(char_map, os.urandom(length)))
+
+def gen_hash(plain):
+	salt = gen_salt(16)
+	return crypt.crypt(plain, '$6$' + salt)
+
+# == sanity checks ==
+
+# ensure the rcfile exists
+if not os.path.exists(rcfile):
+	# touch the file and chmod 600
+	open(rcfile, 'w').close()
+	os.chmod(rcfile, 0600)
+
+statinfo = os.lstat(rcfile)
+# ensure rcfile is owned by current user
+if statinfo.st_uid != os.getuid():
+	fail('RC file is not owned by correct user.')
+# ensure rcfile is not group or world writable
+mode = statinfo.st_mode
+if mode & stat.S_IRGRP or mode & stat.S_IROTH:
+	fail('RC file is readable by other users.')
+
+if len(sys.argv) > 1 and sys.argv[1] == 'add':
+	plain = gen_salt(20)
+	crypted = gen_hash(plain)
+
+	f = open(rcfile, 'r')
+	t = tempfile.NamedTemporaryFile()
+	for line in f:
+		t.write(line)
+	f.close()
+	t.write(crypted + '\n')
+	t.flush()
+	shutil.copy(t.name, rcfile)
+	t.close()
+	print plain
+	sys.exit(0)
+
+# == password check ==
+
+# read password from rcfile
+pwhash = None
+f = open(rcfile, 'r')
+for line in f:
+	if line.startswith('$6$'):
+		pwhash = line.rstrip()
+		break
+f.close()
+
+if not pwhash:
+	fail('No passwords remain.')
+
+response = getpass('password: ')
+
+if check_hash(response, pwhash):
+	# success, delete the one-time password from the rcfile
+	f = open(rcfile, 'r')
+	t = tempfile.NamedTemporaryFile()
+	for line in f:
+		if line.rstrip() == pwhash:
+			continue
+		t.write(line)
+	f.close()
+	t.flush()
+	shutil.copy(t.name, rcfile)
+	t.close()
+
+	# and exec() the user's shell
+	# TODO: figure out how to correctly get it to be a login shell
+	del response, pwhash
+	shell = pwd.getpwuid(os.getuid()).pw_shell
+	arg0 = '-' + os.path.basename(shell)
+	os.execv(shell, [arg0])
+
+# failure
+fail('Access denied.')
+
