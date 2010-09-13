@@ -1,0 +1,15 @@
+#!/bin/bash
+
+set -e
+
+if [ -z "$1" ]; then
+	echo $(basename $0) DELAY
+	exit 1
+fi
+
+delay=$1
+
+while read line; do
+	echo "$line"
+	sleep $delay
+done
