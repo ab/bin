@@ -2,6 +2,7 @@
 
 date=$(date "+%F")
 day=$(date "+%a")
+ext=txt
 
 case $day in
 	Mon | Wed | Fri)
@@ -17,9 +18,12 @@ case "$1" in
 		cmd=pyroom;;
 	vim)
 		cmd=vim;;
+	lyx)
+		cmd=lyx
+		ext=lyx;;
 	*)
 		cmd=vim;;
 esac
 
-$cmd $dstamp.txt
+$cmd $dstamp.$ext
 
