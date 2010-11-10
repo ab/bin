@@ -1,0 +1,15 @@
+#!/bin/sh
+
+if [ -z "$1" ]; then
+	echo "$(basename $0) MINS [-n]"
+	echo "Remove all files from ~/.thumbnails/ newer than MINS minutes."
+	exit 1
+fi
+
+mins=$1
+
+if [ "$2" = "-n" ]; then
+	find ~/.thumbnails/ -type f -mmin "-$mins" -print
+else
+	find ~/.thumbnails/ -type f -mmin "-$mins" -exec shred -uvz {} \;
+fi
