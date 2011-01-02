@@ -1,0 +1,24 @@
+#!/bin/bash
+
+server=$1
+port=$2
+wait=$3
+onsuccess="$server:$port is alive!"
+
+# default wait
+if [ -z "$wait" ]; then
+	wait=30
+fi
+
+if [ -z "$server" -o -z "$port" ]; then
+	echo "$(basename $0) HOST PORT [interval]"
+	exit 2
+fi
+
+# ping until we find the server
+until nc -vz $server $port; do
+	sleep $wait
+done
+
+echo "$onsuccess"
+zenity --info --title='Server check' --text="$onsuccess"
