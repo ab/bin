@@ -1,0 +1,32 @@
+#!/bin/bash
+
+function getvms() {
+    ssh $1 virsh list | grep running | grep -v crimson-ws | awk '{ print $2 }'
+}
+function getallvms() {
+    for hypervisor in "$@"; do
+	for host in $(getvms $hypervisor); do
+	    echo $host
+	done
+    done
+}
+function ssh-aupdate () {
+    if [ -z $1 ]; then
+        echo ssh-aupdate HOST
+        return 2
+    fi
+    remotehost=$1
+    shift
+    echo "ssh $remotehost aupdate $*"
+    ssh -t $remotehost "sudo aptitude update && sudo aptitude full-upgrade $*"
+}
+
+allhosts="$(getallvms remus romulus hersilia | sort)"
+for host in $allhosts; do
+    read -p "Update $host? (Y/n)" ans
+    if [ "$ans" = "Y" -o "$ans" = "y" -o "$ans" = "" ]; then
+	ssh-aupdate $host $*
+    elif [ "$ans" = "hcs" -o "$ans" = "bootstrap" ]; then
+	ssh-aupdate $ans@$host $*
+    fi
+done
