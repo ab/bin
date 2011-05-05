@@ -1,0 +1,19 @@
+#!/bin/bash
+# Nice reminders -
+# take input line and break it at = supplying the args before the =
+# to 'at' and the message after the = to 'notify-send'
+# Examples
+# remind 16:00 = Pick up boys
+# remind 16:00 + 1 day = Pick up boys
+# remind 17:00 2 Dec = SVBN dinner
+#
+ALLARGS="$@"
+MESSAGE=${ALLARGS##*=}
+ATARGS=${ALLARGS%%=*}
+
+at $ATARGS << EOF
+notify-send  -t 500 "Reminder" "$MESSAGE"
+ogg123 -q /usr/share/sounds/ubuntu/stereo/dialog-question.ogg
+EOF
+# aplay -q /usr/share/sounds/question.wav
+
