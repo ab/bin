@@ -1,0 +1,191 @@
+#!/usr/bin/env python
+
+import argparse
+import os
+import pwd
+import smtplib
+import subprocess
+import sys
+import time
+
+VERSION = '0.1'
+
+def default_message(command, retcode):
+    return "Command %s exited with status %d at %s." % (command, retcode,
+                                                        time.strftime('%F %R'))
+
+def run(command, stdout=None, stderr=None, shell=False):
+    if stdout is None:
+        stdout = subprocess.PIPE
+    if stderr is None:
+        stderr = subprocess.PIPE
+
+    p = subprocess.Popen(command, stdout=stdout, stderr=stderr, shell=shell)
+    out, err = p.communicate()
+
+    return p.returncode
+
+def get_user_email(uid=None):
+    if uid is None:
+        uid = os.getuid()
+    entry = pwd.getpwuid(uid)
+    return entry.pw_gecos.split(',')[0] + ' <' + entry.pw_name + '>'
+
+def email_alert(addresses, command, retcode):
+    from_addr = get_user_email()
+    to_addrs = ', '.join(addresses)
+
+    print from_addr
+    print to_addrs
+
+    message = '\n'.join(['From: ' + from_addr,
+                         'To: ' + to_addrs,
+                         'Subject: alert finished',
+                         '',
+                         default_message(command, retcode),
+                         ''])
+
+    server = smtplib.SMTP('localhost')
+    return server.sendmail(from_addr, addresses, message)
+
+def sms_alert(addresses, command, retcode):
+    from_addr = get_user_email()
+    to_addrs = ', '.join(addresses)
+
+    print from_addr
+    print to_addrs
+
+    message = '\n'.join(['From: ' + from_addr,
+                         'To: ' + to_addrs,
+                         'Subject: alert finished',
+                         '',
+                         default_message(command, retcode),
+                         ''])
+
+    server = smtplib.SMTP('localhost')
+    return server.sendmail(from_addr, addresses, message)
+
+def console_alert(message, command, retcode):
+    if not message:
+        message = default_message(command, retcode)
+    sys.stderr.write(message + '\n')
+
+def zenity_alert(message, command, retcode):
+    if not message:
+        message = default_message(command, retcode)
+
+    # evidently this is needed for zenity
+    # https://bugzilla.gnome.org/show_bug.cgi?id=621907
+    message = message.replace('&', '&amp;')
+
+    run(['zenity', '--info', '--title', 'alert finished', '--text', message])
+
+def run_actions(command, retcode, args):
+    if args.email:
+        email_alert(args.email, command, retcode)
+
+    if args.sms:
+        sms_alert(args.sms, command, retcode)
+
+    if args.console:
+        console_alert(args.message, command, retcode)
+
+    if args.pop_up:
+        zenity_alert(args.message, command, retcode)
+
+def main(command, delay, args):
+    run_args = {'stdout':args.stdout, 'stderr':args.stderr,
+                'shell':args.shell}
+    while True:
+        ret = run(command, **run_args)
+        if args.status is not None:
+            if ret == args.status:
+                break
+        else:
+            if ret != 0:
+                break
+
+        if not args.quiet:
+            sys.stderr.write('.')
+            sys.stderr.flush()
+
+        time.sleep(delay)
+
+    run_actions(command, ret, args)
+    
+    return 0
+
+if __name__ == '__main__':
+    p = argparse.ArgumentParser(
+          usage='%(prog)s [options] COMMAND...',
+          description='''
+            Run specified command repeatedly until it exits with a particular
+            exit status (anything nonzero by default), then send an alert by
+            the specified methods.
+            ''')
+
+    # various alert actions
+    g = p.add_argument_group('actions')
+    g.add_argument('-e', '--email', action='append',
+                   help='email given address (may be passed multiple times)')
+    g.add_argument('-s', '--sms', action='append', metavar='EMAIL',
+                   help='SMS alert recipient (an email address)')
+    g.add_argument('-p', '--pop-up', action='store_true',
+                   help='display a pop-up with zenity')
+    g.add_argument('-c', '--console', action='store_true',
+                   help='display a message on the console')
+    g.add_argument('-a', '--action', metavar='COMMAND',
+                   help='run specified %(metavar)s')
+    g.add_argument('-m', '--message', help='message displayed by each action')
+
+    # all other arguments
+    p.add_argument('-q', '--quiet', action='store_true',
+                   help='suppress command-line output')
+    p.add_argument('-v', '--verbose', action='store_true',
+                   help='be verbose')
+    p.add_argument('-d', '--delay', type=float, metavar='SECONDS', default=15,
+                   help='wait between command executions (default %(default)s)')
+    p.add_argument('--shell', action='store_true',
+                   help='run command in a shell')
+    p.add_argument('-z', '--zero', action='store_const',const=0, dest='status',
+                   help='alert when exit status is zero instead of nonzero')
+    p.add_argument('--exit-status', type=int, dest='status', metavar='STATUS',
+                   help='alert when exit status is %(metavar)s')
+
+    p.add_argument('--stdout', metavar='FILE', type=argparse.FileType('w'),
+                   help='send command stdout to %(metavar)s (use - for stdout)')
+    p.add_argument('--stderr', metavar='FILE', type=argparse.FileType('w'),
+                   help='send command stderr to %(metavar)s (use - for stderr)')
+
+    # collect the command
+    p.add_argument('command', nargs=argparse.REMAINDER, metavar='COMMAND',
+                   help='conditional command to run (alert on nonzero exit)')
+    #p.add_argument('command', nargs='+', metavar='COMMAND',
+    #               help='conditional command to run (alert on nonzero exit)')
+    args = p.parse_args()
+
+    if not args.command:
+        p.error('COMMAND is required.')
+
+    if args.command[0] == '--':
+        args.command = args.command[1:]
+
+    if not args.command[0]:
+        p.error('COMMAND is required. Perhaps other options are invalid?')
+
+    if not args.quiet:
+        sys.stderr.write('Command: ' + ' '.join(args.command) + '\n')
+
+    if args.stderr == '-':
+        args.stderr = sys.stderr
+    if args.stdout == '-':
+        args.stdout = sys.stdout
+
+    if args.verbose:
+        sys.stderr.write('Arguments: ' + str(args) + '\n')
+
+    try:
+        main(args.command, args.delay, args)
+    except KeyboardInterrupt:
+        sys.stderr.write('\n')
+
