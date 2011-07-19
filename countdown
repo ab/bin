@@ -1,0 +1,65 @@
+#!/usr/bin/env python
+import os
+import sys
+import time
+from datetime import datetime, timedelta
+
+def display(string):
+    sys.stderr.write('\r' + string + ' '*8 + '\b'*8)
+    sys.stderr.flush()
+
+def format_delta(delta, show_seconds=True, hours_always=False):
+    s = ''
+    if delta.days:
+        s += str(delta.days) + ' '
+        s += 'days ' if delta.days > 1 else 'day '
+
+    hours = delta.seconds // 3600
+    if hours or hours_always:
+        s += "%d:" % hours
+
+    s += "%02d" % ((delta.seconds // 60) % 60)
+
+    seconds = delta.seconds % 60 + delta.microseconds / 1000000.
+    if show_seconds:
+        s += ':%02d' % round(seconds, 0)
+
+    return s
+
+def delta_in_seconds(delta):
+    return delta.days * 86400 + delta.seconds + delta.microseconds / 1000000.
+
+def countdown(delay):
+    now = datetime.now()
+    end = now + timedelta(seconds=delay)
+
+    while now < end:
+        display(format_delta(end - now))
+        if end - now < timedelta(seconds=1):
+            time.sleep(0.1)
+        else:
+            time.sleep(0.5)
+        now = datetime.now()
+
+    sys.stderr.write('\n')
+
+def usage():
+    sys.stderr.write('usage: %s SECONDS\n' % os.path.basename(sys.argv[0]))
+    sys.exit(2)
+
+if __name__ == '__main__':
+    try:
+        delay = int(sys.argv[1])
+    except IndexError:
+        usage()
+    except ValueError:
+        try:
+            delay = float(sys.argv[1])
+        except ValueError:
+            usage()
+
+    try:
+        countdown(delay)
+    except KeyboardInterrupt:
+        sys.stderr.write('\n')
+        sys.exit(130)
