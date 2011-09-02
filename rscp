@@ -1,0 +1,35 @@
+#!/bin/bash
+set -e
+set -o nounset
+
+if [ $# -ne 2 ]; then
+    echo "A script to facilitate using scp with two remote files."
+    echo "usage: $(basename $0) [[user@]host1:]file1 [[user@]host2:]file2"
+    exit 2
+fi
+
+if ! [[ $1 == *:* && $2 == *:* ]]; then
+    # only one of the hosts is remote, so just exec scp
+    echo >&2 "+ scp $*"
+    exec scp $*
+fi
+
+tmpdir="$(mktemp -d)" || exit 5
+trap "rm -rf '$tmpdir'" EXIT
+
+run() {
+    echo >&2 "+ $*"
+    $*
+}
+
+# Strip off any leading "host:" part before calling basename.
+remote_basename() {
+    basename "$(echo "$1" | cut -f 2 -d :)"
+}
+
+scptmp() {
+    run scp "$1" "$tmpdir/"
+    run scp "$tmpdir/$(remote_basename $1)" "$2"
+}
+
+scptmp "$1" "$2"
