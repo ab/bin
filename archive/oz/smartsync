@@ -1,0 +1,36 @@
+#!/bin/bash
+
+if [ -z $1 ] || [ -z $2 ]; then
+	cat >&2 <<EOM
+smartsync SOURCE TARGET
+Keep target directory synchronized with source using inotify and rsync -R.
+EOM
+	exit 2
+fi
+
+if ! which inotifywait > /dev/null; then
+	echo "Error: inotifywait not found!"
+	echo "(part of package inotify-tools in debian/ubuntu)"
+	exit 3
+fi
+
+#exclude='--exclude "*.svn*"'
+event='-e close_write'
+
+inotifywait -mrq --format '%w %f' $event $exclude $1 | \
+	while read path file; do
+	#echo "${path} - ${file}"
+
+	# skip .svn files
+	if [[ ${path} == *.svn* ]]; then continue; fi
+
+	# skip .swp/.swx files
+	if echo "$file" | grep -E '\.sw(p|x)$' > /dev/null; then continue; fi
+
+	# skip files that already don't exist (i.e. temporary files)
+	if [ ! -f "${path}${file}" ]; then continue; fi
+
+	echo "$(date '+%F %R')   rsync -CRO -rltD ${path}${file} $2"
+	rsync -CRO -rltD ${path}${file} $2 || echo "ERROR"
+done
+
