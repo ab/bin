@@ -1,0 +1,12 @@
+#!/bin/sh
+
+path=/desktop/gnome/session/required_components/windowmanager
+cur="$(gconftool-2 -g $path)"
+
+if [ "$cur" = "xmonad" ]; then
+    gconftool-2 -s $path gnome-wm --type string
+    echo xmonad disabled
+else
+    gconftool-2 -s $path xmonad --type string
+    echo xmonad enabled
+fi
