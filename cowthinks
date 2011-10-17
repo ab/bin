@@ -1,0 +1,16 @@
+#!/bin/bash
+
+tmpfile1=$(mktemp)
+tmpfile2=$(mktemp)
+
+cowthink -n > $tmpfile2
+
+for i in $(seq 2 $1); do
+	cp $tmpfile2 $tmpfile1
+	cowthink -n < $tmpfile1 > $tmpfile2
+done
+
+cat $tmpfile2
+
+rm $tmpfile1
+rm $tmpfile2
