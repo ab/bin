@@ -1,0 +1,20 @@
+#!/bin/sh
+# version 1.0
+set -e
+set -o nounset
+
+repo=~/Private/pwman/
+
+cd $repo
+
+echo "+ git pull"
+git pull
+
+if ! git diff-files --quiet; then
+	echo "+ git commit"
+	git commit -a -m 'Update passwords'
+	echo "+ git push"
+	git push
+fi
+
+git status
