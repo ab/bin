@@ -1,0 +1,35 @@
+#!/bin/sh
+
+run() {
+    echo>&2 "+ $*"
+    $*
+}
+
+for file in "$@"; do
+    hashlen="$(head -1 "$file" | cut -f 1 -d' ' | wc -c)"
+    hashlen=$((hashlen - 1))   # ignore trailing newline
+
+    case $hashlen in
+        32)  cmd=md5sum ;;
+        40)  cmd=sha1sum ;;
+        56)  cmd=sha224sum ;;
+        64)  cmd=sha256sum ;;
+        98)  cmd=sha384sum ;;
+        128) cmd=sha512sum ;;
+        *)
+            echo "File $file has unexpected hash length: $hashlen"
+            exit 3
+            ;;
+    esac
+
+    if [ -r "$file.gpg" ]; then
+        run gpg --verify $file.gpg $file || exit 5
+    fi
+
+    run $cmd -w -c $file
+    exit=$?
+    if [ $exit -ne 0 ]; then
+        echo>&2 "exit status $exit"
+    fi
+done
+
