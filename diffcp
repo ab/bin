@@ -1,0 +1,90 @@
+#!/bin/sh
+
+usage() {
+    cat >&2 <<EOM
+usage: $(basename "$0") SOURCE DEST
+
+Show a diff of source and dest, and prompt before overwriting.
+
+options:
+    -h   show this help message
+    -m   use mv rather than cp
+    -v   be more verbose
+    -b   make a backup of the destination file
+EOM
+}
+
+operation=cp
+verbose=
+backup=
+
+while getopts bhmv OPT; do
+    case $OPT in
+        b)  backup=1 ;;
+        m)  operation=mv ;;
+        v)  verbose=1 ;;
+        h)
+            usage
+            exit 0
+            ;;
+        \?)
+            usage
+            exit 1
+            ;;
+    esac
+done
+
+shift $((OPTIND-1))
+
+
+if [ -z "$1" -o -z "$2" ]; then
+    usage
+    exit 1
+fi
+
+set -o nounset
+
+src="$1"
+dst="$2"
+
+diff="diff"
+if which colordiff > /dev/null; then
+    diff="colordiff"
+fi
+
+"$diff" -u "$src" "$dst"
+
+ret=$?
+
+if [ $ret -eq 0 ]; then
+    # no changes
+
+    if [ -n "$verbose" ]; then
+        echo >&2 "\`$src' == \`$dst'"
+    fi
+
+    exit 0
+
+elif [ $ret -eq 1 ]; then
+    # changes
+
+    opts=
+
+    if [ -n "$verbose" ]; then
+        opts="$opts -v"
+    fi
+
+    if [ -n "$backup" ]; then
+        opts="$opts -b"
+    fi
+
+    if [ "$operation" = "cp" ]; then
+        opts="$opts -a"
+    fi
+
+    $operation -i $opts "$src" "$dst"
+
+else
+    # error
+    exit $ret
+fi
