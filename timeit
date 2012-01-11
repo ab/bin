@@ -1,0 +1,64 @@
+#!/bin/bash
+# VERSION: 0.1
+
+usage() {
+    cat >&2 <<EOM
+usage: $(basename "$0") [options] COMMAND
+
+Time repeated execution of COMMAND.
+
+options:
+    -h             Print this help message
+    -n NUMBER      Run NUMBER trials
+
+EOM
+}
+
+
+
+NUM=1
+
+while getopts hn: OPT; do
+    case $OPT in
+        h)
+            usage
+            exit 0
+            ;;
+        n)
+            NUM="$OPTARG"
+            ;;
+        \?)
+            usage
+            exit 1
+            ;;
+    esac
+done
+
+shift $((OPTIND-1))
+
+if [ $# -lt 1 ]; then
+    usage
+    exit 1
+fi
+
+logfile="$(mktemp)"
+trap "rm '$logfile'" EXIT
+
+start="$(date "+%s.%N")"
+seq 1 "$NUM" | while read num; do
+    # TODO: verbose option
+    #echo>&2 -n '.'
+    /usr/bin/time -o "$logfile" -a --format '%e' "$@"
+done
+end="$(date "+%s.%N")"
+
+echo>&2 ''
+
+# WTF bash, no floating point numbers
+sum="$(echo "scale=10; $end - $start" | bc -q)"
+mean="$(echo "scale=10; $sum / $NUM" | bc -q)"
+
+echo>&2 "count: $NUM"
+echo>&2 "total: $(printf "%0.3f" "$sum")"
+echo>&2 "mean:  $(printf "%0.3f" "$mean")"
+
