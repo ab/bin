@@ -1,0 +1,6 @@
+#!/bin/sh
+
+date +%c
+for tz in "$@"; do
+    TZ="$tz" date +%c
+done
