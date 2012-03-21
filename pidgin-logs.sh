@@ -1,6 +1,5 @@
 #!/bin/sh
-set -e
-set -x
+set -eux
 cd ~/.purple/logs
 git pull
 git add aim irc jabber
