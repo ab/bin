@@ -1,0 +1,30 @@
+#!/bin/bash
+
+pid=$(pgrep -x ssh-agent) || { echo 'no ssh-agent found'; return 1; }
+gkpid=$(pgrep -x gnome-keyring-d)
+
+if [ -n "$gkpid" ]; then
+    # use gnome-keyring-daemon socket
+    sock=$(sudo lsof -p $gkpid | awk '{print $NF}' | grep -E '^/tmp/.+/ssh$')
+else
+    # use native ssh-agent socket
+    sock=$(sudo lsof -p $pid | awk '{print $NF}' | grep -E '^/tmp/ssh')
+fi
+
+if [ ! -e "$sock" ]; then
+    echo "no such file: $sock"
+    return 2
+fi
+
+if [ ! -S "$sock" ]; then
+    echo "not a socket: $sock"
+    return 3
+fi
+
+echo "export SSH_AUTH_SOCK=$sock"
+echo "export SSH_AGENT_PID=$pid"
+export SSH_AUTH_SOCK="$sock"
+export SSH_AGENT_PID="$pid"
+
+echo ''
+ssh-add -l
