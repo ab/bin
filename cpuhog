@@ -1,0 +1,35 @@
+#!/usr/bin/env python
+import multiprocessing
+import os
+import sys
+
+def loop():
+    while True:
+        pass
+
+def hog():
+    print 'hog started:', os.getpid()
+    try:
+        loop()
+    except KeyboardInterrupt:
+        pass
+
+def run_hogs(num_hogs):
+    print 'Launching %d hogs' % num_hogs
+    procs = [multiprocessing.Process(target=hog) for i in range(num_hogs)]
+    for p in procs:
+        p.start()
+    for p in procs:
+        p.join()
+
+if __name__ == '__main__':
+    if len(sys.argv) > 1:
+        num = int(sys.argv[1])
+    else:
+        num = multiprocessing.cpu_count()
+
+    try:
+        run_hogs(num)
+    except KeyboardInterrupt:
+        print ''
+
