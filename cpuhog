@@ -1,16 +1,17 @@
 #!/usr/bin/env python
+"""
+CPUHog will hog your CPU.
+"""
+
 import multiprocessing
 import os
 import sys
 
-def loop():
-    while True:
-        pass
-
 def hog():
     print 'hog started:', os.getpid()
     try:
-        loop()
+        while True:
+            pass
     except KeyboardInterrupt:
         pass
 
@@ -32,4 +33,3 @@ if __name__ == '__main__':
         run_hogs(num)
     except KeyboardInterrupt:
         print ''
-
