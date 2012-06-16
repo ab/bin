@@ -1,0 +1,3 @@
+#!/bin/sh
+set -eux
+vim "$HOME/stripe/wiki/all-hands-$(date +%F).textile"
