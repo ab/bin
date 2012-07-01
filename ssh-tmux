@@ -1,0 +1,41 @@
+#!/bin/sh
+set -eu
+
+if ! which tmux > /dev/null; then
+    echo>&2 "$(basename "$0"): tmux: command not found"
+    exit 3
+fi
+
+usage() {
+    cat >&2 <<EOM
+Usage: $(basename "$0") SSH_HOST...
+
+SSH to each SSH_HOST in separate tmux panes.
+
+EOM
+
+}
+
+tmux_cmd() {
+        tmux send-keys -t $session "$*
+"
+}
+tmux_ssh() {
+    tmux_cmd "ssh '$1'"
+}
+
+if [ $# -lt 1 ]; then
+    usage
+    exit 1
+fi
+
+session=$(mktemp -u ssh-XXX)
+tmux new-session -d -s $session
+
+for host in $*; do
+    tmux split-window -t $session -v
+    tmux_ssh "$host"
+done
+
+tmux select-layout -t $session even-vertical
+tmux attach -t $session
