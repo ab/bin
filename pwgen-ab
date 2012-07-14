@@ -1,0 +1,64 @@
+#!/bin/bash
+set -eu
+set -o pipefail
+
+# punctuation according to gnome-terminal
+# word separators: !"$'()*;<>[\]^`{|}
+# non separators:  #%&+,-./:=?@_~
+
+usage() {
+    cat >&2 <<EOM
+usage: $(basename "$0") [-v] LENGTH [PWGEN_OPTS...]
+
+Generate random passwords using pwgen that have no punctuation characters that
+gnome-terminal considers to be word separators.
+
+It sends pwgen a length that is 25% larger than LENGTH to get enough data.
+
+OPTIONS
+    -v      Be more verbose.
+
+SEE ALSO
+    pwgen(1)
+EOM
+    exit 1
+}
+
+log() {
+    test -n "$verbose" || return 0
+    echo >&2 "$*"
+}
+
+verbose=
+if [ $# -ge 1 ] && [ "$1" = "-v" ]; then
+    verbose=1
+    shift
+fi
+
+if [ $# -lt 1 ]; then
+    usage
+fi
+
+target="$1"
+shift
+
+pwlen="$(($target * 5 / 4))"
+
+while true; do
+    log "+ pwgen $* $pwlen | tr -d "'!"$'\''()*;<>[\\]^`{|}'
+    pass="$(pwgen "$@" "$pwlen" | tr -d '!"$'\''()*;<>[\\]^`{|}')"
+    len="${#pass}"
+
+    if [ "$len" -gt "$target" ]; then
+        log "len: $target (truncated from $len)"
+        pass="${pass:0:$target}"
+        break
+    elif [ "$len" -eq "$target" ]; then
+        log "len: $len"
+        break
+    else
+        log "len: $len"
+    fi
+done
+
+echo "${pass:0:$target}"
