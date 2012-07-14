@@ -6,6 +6,8 @@ set -o pipefail
 # word separators: !"$'()*;<>[\]^`{|}
 # non separators:  #%&+,-./:=?@_~
 
+default_opts="-sy"
+
 usage() {
     cat >&2 <<EOM
 usage: $(basename "$0") [-v] LENGTH [PWGEN_OPTS...]
@@ -14,6 +16,9 @@ Generate random passwords using pwgen that have no punctuation characters that
 gnome-terminal considers to be word separators.
 
 It sends pwgen a length that is 25% larger than LENGTH to get enough data.
+
+If PWGEN_OPTS are given, they will be passed to pwgen. Otherwise, default
+options of "$default_opts" will be used.
 
 OPTIONS
     -v      Be more verbose.
@@ -39,14 +44,19 @@ if [ $# -lt 1 ]; then
     usage
 fi
 
-target="$1"
+target="$(printf "%d" "$1")"
 shift
 
 pwlen="$(($target * 5 / 4))"
 
+pwopts="$*"
+if [ -z "$pwopts" ]; then
+    pwopts="$default_opts"
+fi
+
 while true; do
-    log "+ pwgen $* $pwlen | tr -d "'!"$'\''()*;<>[\\]^`{|}'
-    pass="$(pwgen "$@" "$pwlen" | tr -d '!"$'\''()*;<>[\\]^`{|}')"
+    log "+ pwgen $pwopts $pwlen | tr -d "'!"$'\''()*;<>[\\]^`{|}'
+    pass="$(pwgen $pwopts "$pwlen" | tr -d '!"$'\''()*;<>[\\]^`{|}')"
     len="${#pass}"
 
     if [ "$len" -gt "$target" ]; then
