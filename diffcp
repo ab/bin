@@ -82,6 +82,8 @@ elif [ $ret -eq 1 ]; then
         opts="$opts -a"
     fi
 
+    echo
+
     $operation -i $opts "$src" "$dst"
 
 else
