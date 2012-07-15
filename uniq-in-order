@@ -1,0 +1,75 @@
+#!/usr/bin/env python
+# This can be achieved by a one-liner:
+#     perl -ne '$H{$_}++ or print'
+
+"""
+Filter even non-adjacent matching lines from input, writing to output.
+
+It is a compatible replacement for uniq, but supports only a small subset of
+options and functionality. It is ideal for replacing `sort | uniq` pipelines
+where the order of the original lines is important.
+"""
+
+import argparse
+import sys
+
+from collections import deque
+
+def uniq(f_in, f_out, ignore_case=False, repeated=False):
+    seen = set()
+    for line in f_in:
+        compare = line.lower() if ignore_case else line
+        if compare in seen:
+            if repeated:
+                f_out.write(line)
+        else:
+            seen.add(compare)
+            if not repeated:
+                f_out.write(line)
+
+def uniq_with_count(f_in, f_out, ignore_case=False, repeated=False):
+    # Could use OrderedDict from Python 2.7 here, but since we don't ever need
+    # to delete or reorder, just use a list at the cost of some extra space.
+    order = deque()
+    counts = {}
+    for line in f_in:
+        compare = line.lower() if ignore_case else line
+        if line in counts:
+            counts[compare] += 1
+        else:
+            counts[compare] = 1
+            order.append(line)
+
+    # now write out
+    for line in order:
+        compare = line.lower() if ignore_case else line
+        if repeated and counts[compare] == 1:
+            continue
+        c = '%7d ' % counts[line]
+        f_out.write(c + line)
+
+if __name__ == '__main__':
+    formatter = argparse.RawDescriptionHelpFormatter
+    p = argparse.ArgumentParser(usage='%(prog)s [options] [input [output]]',
+                                description=__doc__, formatter_class=formatter)
+
+    p.add_argument('-c', '--count', action='store_true',
+                   help='prefix lines by the number of occurrences')
+    p.add_argument('-d', '--repeated', action='store_true',
+                   help='only print duplicate lines')
+    p.add_argument('-i', '--ignore-case', action='store_true',
+                   help='ignore differences in case when comparing')
+
+    p.add_argument('input', nargs='?', type=argparse.FileType('r'),
+                   default=sys.stdin, help='default: stdin')
+    p.add_argument('output', nargs='?', type=argparse.FileType('w'),
+                   default=sys.stdout, help='default: stdout')
+
+    args = p.parse_args()
+
+    if args.count:
+        uniq_with_count(args.input, args.output, args.ignore_case,
+                        args.repeated)
+    else:
+        uniq(args.input, args.output, args.ignore_case, args.repeated)
+
