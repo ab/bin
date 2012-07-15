@@ -1,0 +1,21 @@
+#!/bin/bash
+# v1.0
+set -e
+set -o nounset
+
+# Get version name and strip off component after last hyphen.
+full_version="$(uname -r)"
+version="${full_version%-*}"
+echo "Running kernel: $version ($full_version)"
+
+pattern='~ilinux-(image|headers)-[0-9].* !'"$version"
+
+echo "Packages to remove:"
+aptitude search "$pattern"
+
+read -s -n 1 -p "Press any key to continue..."
+echo -e "\n"
+
+set -x
+sudo aptitude purge "$pattern"
+
