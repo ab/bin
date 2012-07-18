@@ -1,0 +1,15 @@
+#!/bin/sh
+set -eu
+case "$(hostname -s)" in
+    coruscant)
+        uuid=c49376a4-98ad-400c-9600-ffd8cbd2cceb
+        ;;
+    *)
+        echo >&2 "Unknown host: $(hostname -s)"
+        ;;
+esac
+
+set -x
+
+nmcli con up uuid "$uuid"
+exec ssh dev8
