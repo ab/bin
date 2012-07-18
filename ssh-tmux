@@ -32,10 +32,16 @@ fi
 session=$(mktemp -u ssh-XXX)
 tmux new-session -d -s $session
 
+# should attach to session even if we fail somewhere
+trap "tmux attach -t $session" EXIT
+
+first_host="$1"
+shift
+
+tmux_ssh "$first_host"
+
 for host in $*; do
     tmux split-window -t $session -v
+    tmux select-layout -t $session even-vertical
     tmux_ssh "$host"
 done
-
-tmux select-layout -t $session even-vertical
-tmux attach -t $session
