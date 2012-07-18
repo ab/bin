@@ -20,10 +20,10 @@ def main(args):
 
     if '.' in args[0]:
         stamp = float(args[0])
-        tformat = '%F %R.%f'
+        tformat = '%F %R:%S.%f'
     else:
         stamp = int(args[0])
-        tformat = '%F %R'
+        tformat = '%F %R:%S'
 
     if len(args) > 1:
         tformat = args[1]
