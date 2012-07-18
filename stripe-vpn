@@ -4,6 +4,9 @@ case "$(hostname -s)" in
     coruscant)
         uuid=c49376a4-98ad-400c-9600-ffd8cbd2cceb
         ;;
+    hoth)
+        uuid=231cc72b-7207-47fa-aceb-a7937f22713d
+        ;;
     *)
         echo >&2 "Unknown host: $(hostname -s)"
         ;;
