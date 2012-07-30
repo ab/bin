@@ -13,9 +13,6 @@ lvname=main
 # number of devices out of /dev/ramN to use
 ndisks=1
 
-# whether to create $mount/$USER for all non-system users
-create_userdirs=1
-
 PATH=/sbin:/bin:/usr/sbin:/usr/bin
 
 usage() {
@@ -44,9 +41,7 @@ do_start() {
     chown "$mount_chown" "$mount"
     chmod "$mount_chmod" "$mount"
 
-    if [ -n "$create_userdirs" ]; then
-        create_userdirs
-    fi
+    run-parts /etc/ramdisk.d/
 }
 
 do_stop() {
@@ -57,24 +52,6 @@ do_status() {
     vgdisplay "$vgname"
     lvdisplay "$vgname/$lvname"
     df -Ph "$mount"
-}
-
-create_userdirs() {
-    uid_min="$(grep ^UID_MIN /etc/login.defs | awk '{ print $NF }')"
-    uid_max="$(grep ^UID_MAX /etc/login.defs | awk '{ print $NF }')"
-    if [ -z "$uid_min" -o -z "$uid_max" ]; then
-        echo >&2 "Failed to find UID_MIN and UID_MAX"
-        exit 4
-    fi
-
-    getent passwd | while read line; do
-        uid="$(echo "$line" | cut -f3 -d:)"
-        if [ "$uid" -ge "$uid_min" -a "$uid" -le "$uid_max" ]; then
-            name="$(echo "$line" | cut -f1 -d:)"
-            mkdir "$mount/$name"
-            chown "$name:" "$mount/$name"
-        fi
-    done
 }
 
 if [ $# -lt 1 ]; then
