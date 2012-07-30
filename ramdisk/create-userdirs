@@ -21,4 +21,11 @@ create_userdirs() {
     done
 }
 
+if [ $# -lt 1 ]; then
+    echo "usage: $0 MOUNTPOINT"
+    exit 1
+fi
+
+mount="$1"
+
 create_userdirs

@@ -41,7 +41,7 @@ do_start() {
     chown "$mount_chown" "$mount"
     chmod "$mount_chmod" "$mount"
 
-    run-parts /etc/ramdisk.d/
+    run-parts -a "$mount" /etc/ramdisk.d
 }
 
 do_stop() {
