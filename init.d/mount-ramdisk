@@ -1,0 +1,99 @@
+#!/bin/sh
+set -eu
+
+# mountpoint
+mount=/mnt/ramdisk
+
+# volume group name
+vgname=ramdisk
+
+# logical volume name
+lvname=main
+
+# number of devices out of /dev/ramN to use
+ndisks=1
+
+# whether to create $mount/$USER for all non-system users
+create_userdirs=1
+
+PATH=/sbin:/bin:/usr/sbin:/usr/bin
+
+usage() {
+    echo "Usage: $0 {start|stop|status}"
+}
+
+do_start() {
+    if lvdisplay "$vgname/$lvname" >/dev/null 2>&1; then
+        echo >&2 "$vgname/$lvname already exists!"
+        exit 1
+    fi
+
+    devs="$(for i in $(seq 0 $(($ndisks - 1))); do echo /dev/ram$i; done)"
+
+    for dev in $devs; do
+        pvcreate "$dev"
+    done
+
+    vgcreate "$vgname" "$devs"
+
+    lvcreate -n "$lvname" -l 100%FREE "$vgname"
+
+    mke2fs -q -m 0 "/dev/$vgname/$lvname"
+
+    mount "/dev/$vgname/$lvname" "$mount"
+
+    if [ -n "$create_userdirs" ]; then
+        create_userdirs
+    fi
+}
+
+do_stop() {
+    umount "$mount"
+}
+
+do_status() {
+    vgdisplay "$vgname"
+    lvdisplay "$vgname/$lvname"
+    df -Ph "$mount"
+}
+
+create_userdirs() {
+    uid_min="$(grep ^UID_MIN /etc/login.defs | awk '{ print $NF }')"
+    uid_max="$(grep ^UID_MAX /etc/login.defs | awk '{ print $NF }')"
+    if [ -z "$uid_min" -o -z "$uid_max" ]; then
+        echo >&2 "Failed to find UID_MIN and UID_MAX"
+        exit 4
+    fi
+
+    getent passwd | while read line; do
+        uid="$(echo "$line" | cut -f3 -d:)"
+        if [ "$uid" -ge "$uid_min" -a "$uid" -le "$uid_max" ]; then
+            name="$(echo "$line" | cut -f1 -d:)"
+            mkdir "$mount/$name"
+            chown "$name:" "$mount/$name"
+        fi
+    done
+}
+
+if [ $# -lt 1 ]; then
+    usage
+    exit 3
+fi
+
+case "$1" in
+    start)
+        do_start
+        ;;
+    stop)
+        do_stop
+        ;;
+    status)
+        do_status
+        ;;
+    *)
+        usage
+        exit 3
+        ;;
+esac
+
+exit 0
