@@ -1,5 +1,15 @@
 #!/bin/sh
-set -eu
+set -e
+
+### BEGIN INIT INFO
+# Provides:          mount-ramdisk
+# Required-Start:    $remote_fs $syslog
+# Required-Stop:     $remote_fs $syslog
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: Create ramdisk at boot
+# Description:       Create and mount a ramdisk on LVM out of /dev/ramN.
+### END INIT INFO
 
 # mountpoint settings
 mount=/mnt/ramdisk
@@ -15,8 +25,10 @@ ndisks=1
 
 PATH=/sbin:/bin:/usr/sbin:/usr/bin
 
+. /lib/lsb/init-functions
+
 usage() {
-    echo "Usage: $0 {start|stop|status}"
+    log_action_msg "Usage: $0 {start|stop|restart|status}"
 }
 
 do_start() {
@@ -57,25 +69,32 @@ do_status() {
     df -Ph "$mount"
 }
 
-if [ $# -lt 1 ]; then
-    usage
-    exit 3
-fi
+trap "log_action_end_msg 1" EXIT
 
 case "$1" in
     start)
+        log_action_begin_msg "Creating ramdisk"
         do_start
         ;;
     stop)
+        log_action_begin_msg "Removing ramdisk"
         do_stop
         ;;
+    restart|reload|force-reload)
+        do_stop || true
+        do_start
+        ;;
     status)
+        log_action_begin_msg "Getting ramdisk details"
         do_status
         ;;
     *)
         usage
+        trap - EXIT
         exit 3
         ;;
 esac
 
+trap - EXIT
+log_end_msg 0
 exit 0
