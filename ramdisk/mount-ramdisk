@@ -40,12 +40,12 @@ do_start() {
     devs="$(for i in $(seq 0 $(($ndisks - 1))); do echo /dev/ram$i; done)"
 
     for dev in $devs; do
-        pvcreate "$dev"
+        pvcreate "$dev" >/dev/null
     done
 
-    vgcreate "$vgname" "$devs"
+    vgcreate "$vgname" "$devs" >/dev/null
 
-    lvcreate -n "$lvname" -l 100%FREE "$vgname"
+    lvcreate -n "$lvname" -l 100%FREE "$vgname" >/dev/null
 
     mke2fs -q -m 0 "/dev/$vgname/$lvname"
 
@@ -59,8 +59,8 @@ do_start() {
 do_stop() {
     umount "$mount"
     lvchange -an "$vgname/$lvname"
-    lvremove "$vgname/$lvname"
-    vgremove "$vgname"
+    lvremove "$vgname/$lvname" >/dev/null
+    vgremove "$vgname" >/dev/null
 }
 
 do_status() {
