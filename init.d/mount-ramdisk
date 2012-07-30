@@ -1,13 +1,13 @@
 #!/bin/sh
 set -eu
 
-# mountpoint
+# mountpoint settings
 mount=/mnt/ramdisk
+mount_chown=root:
+mount_chmod=0755
 
-# volume group name
+# volume group and logical volume name
 vgname=ramdisk
-
-# logical volume name
 lvname=main
 
 # number of devices out of /dev/ramN to use
@@ -41,6 +41,8 @@ do_start() {
     mke2fs -q -m 0 "/dev/$vgname/$lvname"
 
     mount "/dev/$vgname/$lvname" "$mount"
+    chown "$mount_chown" "$mount"
+    chmod "$mount_chmod" "$mount"
 
     if [ -n "$create_userdirs" ]; then
         create_userdirs
