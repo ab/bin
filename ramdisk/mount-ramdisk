@@ -46,6 +46,9 @@ do_start() {
 
 do_stop() {
     umount "$mount"
+    lvchange -an "$vgname/$lvname"
+    lvremove "$vgname/$lvname"
+    vgremove "$vgname"
 }
 
 do_status() {
