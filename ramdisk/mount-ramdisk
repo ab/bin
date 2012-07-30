@@ -43,7 +43,7 @@ do_start() {
         pvcreate "$dev" >/dev/null
     done
 
-    vgcreate "$vgname" "$devs" >/dev/null
+    vgcreate "$vgname" $devs >/dev/null
 
     lvcreate -n "$lvname" -l 100%FREE "$vgname" >/dev/null
 
