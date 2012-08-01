@@ -10,7 +10,7 @@ Decrypt FILENAME using N_TO_RECOVER secret tokens created by ssss-split.
 
 Options:
     -h         Show this help message
-    -o FILE    Write decrypted file to FILE
+    -o FILE    Write decrypted file to FILE (defaults to FILENAME w/o .gpg)
 
 EOM
 }
