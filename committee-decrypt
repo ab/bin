@@ -1,0 +1,69 @@
+#!/bin/bash
+set -eu
+set -o pipefail
+
+usage() {
+    cat >&2 <<EOM
+usage: $(basename "$0") [options] FILENAME N_TO_RECOVER
+
+Decrypt FILENAME using N_TO_RECOVER secret tokens created by ssss-split.
+
+Options:
+    -h         Show this help message
+    -o FILE    Write decrypted file to FILE
+
+EOM
+}
+
+outfile=
+
+while getopts o:h OPT; do
+    case "$OPT" in
+        o)
+            outfile="$OPTARG"
+            ;;
+        h)
+            usage
+            exit 0
+            ;;
+        \?)
+            usage
+            exit 1
+            ;;
+    esac
+done
+
+shift $((OPTIND-1))
+
+if [ $# -lt 2 ]; then
+    usage
+    exit 1
+fi
+
+n_to_recover="$2"
+
+tokens=""
+for i in $(seq 1 "$n_to_recover"); do
+    read -s -p "Enter token $i: " tok
+    [ -t 0 ] && echo ''
+    tokens="$tokens$tok
+"
+done
+
+set -x
+
+filename="$1"
+if [ -z "$outfile" ]; then
+    outfile="${filename%.gpg}"
+    if [ "$filename" = "$outfile" ]; then
+        cat >&2 <<< "error: $filename does not end with .gpg"
+        exit 2
+    fi
+fi
+
+# ssss-combine sends result to stderr, which is dumb. Even with -Q it can still
+# produce other warnings, so we have to do tail -1, which makes this unsafe
+# unless the secret cannot contain newlines. Our secrets do not, so that's OK.
+ssss-combine -t "$n_to_recover" -Q 2>&1 <<< "$tokens" | tail -1 | \
+    gpg -o "$outfile" -d --passphrase-fd 0 "$filename"
+

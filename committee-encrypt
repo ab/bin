@@ -1,0 +1,83 @@
+#!/bin/bash
+set -eu
+set -o pipefail
+
+usage() {
+    cat >&2 <<EOM
+usage: $(basename "$0") [options] FILENAME N_TO_RECOVER KEY_ID...
+
+Encrypt FILENAME using a symmetric key that is split into one part for each
+named GPG recipient, any N_TO_RECOVER of which are sufficient to reconstitute
+the key. The tokens will be individually encrypted and written to files of the
+form "token-for-\$KEY_ID.gpg".
+
+Options:
+    -h            Show this help message
+    -c COMMENT    Comment to place at beginning of token
+    -o FILE       Write encrypted secret to FILE
+
+Example:
+    $(basename "$0") secret.tgz 2 larry@stripe, curly@stripe, moe@stripe
+
+    Encrypt secret.tgz, allowing any two of Larry, Curly, and Moe to read it.
+
+EOM
+}
+
+comment="token"
+outfile=
+
+while getopts c:ho: OPT; do
+    case "$OPT" in
+        c)
+            comment="$OPTARG"
+            ;;
+        o)
+            outfile="$OPTARG"
+            ;;
+        h)
+            usage
+            exit 0
+            ;;
+        \?)
+            usage
+            exit 1
+            ;;
+    esac
+done
+
+shift $((OPTIND-1))
+
+if [ $# -lt 3 ]; then
+    usage
+    exit 1
+fi
+
+# Alphanumeric keys give log2(62) bits of entropy (5.95) per character, so we
+# would get a full 256 bits of entropy from 43 characters. Here we round up to
+# 48 for the hell of it.
+echo >&2 "+ pwgen -s 48 1"
+key="$(pwgen -s 48 1)"
+
+set -x
+
+filename="$1"
+num_recover="$2"
+shift 2
+
+if [ -z "$outfile" ]; then
+    outfile="$filename.gpg"
+fi
+
+gpg -c -o "$outfile" --passphrase-fd 0 --cipher-algo aes256 "$filename" \
+    <<< "$key"
+
+num_total="$#"
+
+cat >&2 <<< "If this stalls, it is probably blocking on /dev/random."
+
+ssss-split -t "$num_recover" -n "$num_total" -w "$comment" -q <<< "$key" | \
+while read line; do
+    gpg -e -r "$1" -o "token-for-$1.gpg" <<< "$line"
+    shift
+done
