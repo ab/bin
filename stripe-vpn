@@ -7,8 +7,12 @@ case "$(hostname -s)" in
     hoth)
         uuid=231cc72b-7207-47fa-aceb-a7937f22713d
         ;;
+    wisp)
+        uuid=f4b6fe62-6737-47aa-bbb9-f763c58eb711
+        ;;
     *)
         echo >&2 "Unknown host: $(hostname -s)"
+        exit 1
         ;;
 esac
 
