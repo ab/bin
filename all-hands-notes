@@ -1,3 +1,4 @@
 #!/bin/sh
 set -eux
-vim "$HOME/stripe/wiki/all-hands-$(date +%F).textile"
+date
+exec vim "$HOME/stripe/wiki/all-hands-$(date +%F).textile"
