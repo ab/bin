@@ -10,6 +10,9 @@ case "$(hostname -s)" in
     wisp)
         uuid=f4b6fe62-6737-47aa-bbb9-f763c58eb711
         ;;
+    zara)
+        uuid=0c70cd7b-3547-4b39-ae95-2e4b0968b033
+        ;;
     *)
         echo >&2 "Unknown host: $(hostname -s)"
         exit 1
