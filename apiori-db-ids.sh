@@ -17,8 +17,6 @@ wait
 set +x
 
 for host in apiori-db{2,4,-e1,-e2} aws-data{1,2}; do
-    echo -n "$host "
-    cat $tmpd/$host.md5
+    cut -f1 -d' ' $tmpd/$host.md5 | tr -d '\n'
+    echo " $host"
 done
-
-set -x
