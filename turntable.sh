@@ -8,5 +8,7 @@ output_dev=alsa_output.pci-0000_00_1b.0.analog-stereo
 
 set -x
 
-pacat -r --latency=$latency_bytes -d $input_dev \
-    | pacat -p --latency=$latency_bytes -d $output_dev &
+pactl load-module module-loopback
+
+#pacat -r --latency=$latency_bytes -d $input_dev \
+#    | pacat -p --latency=$latency_bytes -d $output_dev &
