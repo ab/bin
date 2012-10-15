@@ -1,0 +1,66 @@
+#!/bin/bash
+NSIG=64
+set -eu
+
+numeric_trap() {
+    num="$1"
+    name="$(kill -l "$num")"
+    if [ $# -gt 1 ] && [ "$2" = "exit" ]; then
+        trap "echo 'Caught signal $num (SIG$name)'; exit $num" $num
+    else
+        trap "echo 'Caught signal $num (SIG$name)'" $num
+    fi
+}
+
+if [ $# -gt 0 ] && [ "$1" = "-h" -o "$1" = "--help" ]; then
+    basename="$(basename "$0")"
+    cat >&2 <<EOM
+usage: $basename [--exit] [SIGNAL...]
+
+Print a message to stdout when receiving any signals.
+
+Print the PID to stderr at startup. You can kill $basename by PID or with
+something like \`killall -9 $basename'.
+
+If no SIGNAL is given, handle ALL signals. If --exit is specified, exit when
+receiving HUP, INT, QUIT, PIPE, or TERM.
+EOM
+    exit 0
+fi
+
+# with --exit be nice to the user and exit on HUP, INT, QUIT, PIPE, TERM
+if [ $# -eq 0 ]; then
+    for i in $(seq 0 $NSIG); do
+        numeric_trap $i
+    done
+elif [ "$1" == "--exit" ]; then
+    for i in $(seq 0 $NSIG); do
+        numeric_trap $i
+    done
+    if [ $# -gt 1 ]; then
+        echo >&2 "Error: Cannot specify --exit and SIGNAL"
+        exit 1
+    fi
+    numeric_trap 1 exit
+    numeric_trap 2 exit
+    numeric_trap 3 exit
+    numeric_trap 13 exit
+    numeric_trap 15 exit
+else
+    for sig in "$@"; do
+        if [ "$sig" -ge 0 ] 2>/dev/null; then
+            numeric_trap "$sig"
+        else
+            num="$(kill -l "$sig")"
+            numeric_trap "$num"
+        fi
+    done
+fi
+
+echo >&2 "$$"
+
+while true; do
+    # put sleep in background so it doesn't get signalled
+    sleep 1 &
+    wait || true
+done
