@@ -47,7 +47,7 @@ def is_keyword(word):
 def process(stream):
     found_keywords = set()
     for line in stream:
-        for word in re.split('[\s,/:-]', line):
+        for word in re.split('[\s,/:.()-]', line):
             if not word:
                 continue
             if is_keyword(word) and word not in found_keywords:
