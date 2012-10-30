@@ -1,0 +1,167 @@
+#!/bin/bash
+# Rename log files of the form BASE.[NUMBER].gz to BASE-[DATE].gz
+set -eu
+
+declare -a default_exts=('' 'gz')
+syslogs="syslog mail.info mail.warn mail.err mail.log daemon.log kern.log auth.log user.log local1.log lpr.log cron.log debug messages"
+
+exts_string=
+for e in "${default_exts[@]}"; do
+    exts_string="$exts_string '$e'"
+done
+
+usage() {
+    cat >&2 <<EOM
+usage: $(basename "$0") [OPTIONS] [LOGS...]
+
+Rename log files of the form BASE.[NUMBER][.EXT] to BASE-[DATE][.EXT]
+
+Options:
+    -h          Display this help.
+    -e EXT      Add EXT as a valid file extension. Default$exts_string.
+    -y          Automatically concatenate files for the same date.
+    -s          Use a default set of syslog files:
+
+$(echo "$syslogs" | fold -sw 60 | sed -e 's/^/                    /')
+
+EOM
+}
+
+declare -a exts=()
+auto_append=
+logs=
+
+while getopts he:ys OPT; do
+    case $OPT in
+        h)
+            usage
+            exit 0
+            ;;
+        e)
+            if [ "${#exts[@]}" -eq 0 ]; then
+                exts=("$OPTARG")
+            else
+                exts=("${exts[@]}" "$OPTARG")
+            fi
+            ;;
+        y)
+            auto_append=1
+            ;;
+        s)
+            logs="$syslogs"
+            ;;
+    esac
+done
+
+shift $((OPTIND-1))
+
+# set exts to defaults if -e not given
+if [ "${#exts[@]}" -eq 0 ]; then
+    exts=("${default_exts[@]}")
+fi
+
+# must specify args if -s was not given
+if [ -z "$logs" ]; then
+    if [ $# -lt 1 ]; then
+        usage
+        exit 1
+    fi
+fi
+
+# add args to logs
+logs="$logs $*"
+
+shopt -s nullglob
+
+echo -n "extensions: "
+for ext in "${exts[@]}"; do
+    echo -n "'$ext' "
+done
+echo ''
+echo "logs: $logs"
+
+run() {
+    echo >&2 "+ $*"
+    "$@"
+}
+
+# atomic_append FIRST SECOND TARGET
+# Concatenate FIRST and SECOND, then atomically replace TARGET with the result.
+# Take file permissions and mtime from SECOND.
+atomic_append() {
+    first="$1"
+    second="$2"
+    target="$3"
+
+    tmpf="$(mktemp)"
+    trap "rm -fv '$tmpf'" EXIT
+
+    echo "+ cat $first $second > $tmpf"
+    cat "$first" "$second" > "$tmpf"
+
+    if [ "$(id -u)" = "0" ]; then
+        run chown --reference "$second" "$tmpf"
+    fi
+    run chmod --reference "$second" "$tmpf"
+    run touch --reference "$second" "$tmpf"
+
+    run mv -v "$tmpf" "$target"
+
+    trap - EXIT
+}
+
+for name in $logs; do
+    for ext in "${exts[@]}"; do
+        if [ -n "$ext" ]; then
+            ext=".$ext"
+        fi
+        echo "looking for $name.\d{1,3}$ext"
+        for file in $name.{[0-9],[0-9][0-9],[0-9][0-9][0-9]}$ext; do
+            if [ -n "$ext" ]; then
+                number=$(echo "$file" | awk -F . '{ print $(NF-1) }')
+            else
+                number=$(echo "$file" | awk -F . '{ print $NF }')
+            fi
+            orig="$name.$number$ext"
+            rdate=$(stat -c "%y" "$orig" | cut -f 1 -d' ' | tr -d -)
+            dateext="$name-$rdate$ext"
+            echo "* $orig"
+
+            if [ -e "$dateext" ]; then
+                echo "$dateext already exists."
+                if [ "$orig" -nt "$dateext" ]; then
+                    echo "$orig is newer than $dateext, will append"
+                    append=1
+                else
+                    echo "$orig is older than $dateext, will prepend"
+                    append=
+                fi
+
+                if [ -n "$auto_append" ]; then
+                    ans=y
+                else
+                    ans=
+                    read -p "Combine them into one file? [Y/n] " ans
+                fi
+
+                if [ "$ans" = "y" -o "$ans" = "Y" ]; then
+                    if [ -n "$append" ]; then
+                        # append
+                        atomic_append "$dateext" "$orig" "$dateext"
+                        rm -fv "$orig"
+                    else
+                        # prepend
+                        atomic_append "$orig" "$dateext" "$dateext"
+                        rm -fv "$orig"
+                    fi
+                else
+                    echo "Taking no action."
+                fi
+            else
+                mv -iv "$orig" "$dateext"
+            fi
+        done
+    done
+done
+
+echo 'done!'
