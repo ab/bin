@@ -1,0 +1,11 @@
+#!/bin/bash
+set -o pipefail
+if [ $# -lt 1 ]; then
+    echo >&2 "usage: $(basename "$0") PASSWORD"
+    echo >&2 "Fetch a password from password vault and add to clipboard."
+    exit 1
+fi
+
+set -eux
+fetch-password "$@" | grep password | awk '{print $NF}' | tr -d '\n' | \
+    xclip -loops 0 -verbose
