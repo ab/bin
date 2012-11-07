@@ -1,0 +1,32 @@
+#!/usr/bin/env python
+
+"""
+Prompt the user for a password and print the result on stdout.
+
+The password prompt goes to stderr. Input is read from stdin and terminated by
+a newline. The result is written with no newline to stdout.
+"""
+
+import getpass
+import optparse
+import sys
+
+p = optparse.OptionParser(usage='usage: %prog [PROMPT]' + __doc__.rstrip('\n'))
+opts, args = p.parse_args()
+
+if args:
+    prompt = ' '.join(args)
+else:
+    prompt = 'Password: '
+
+out_stream = sys.stdout
+
+try:
+    pw = getpass.getpass(prompt)
+except EOFError:
+    sys.exit(1)
+except KeyboardInterrupt:
+    sys.exit(2)
+else:
+    out_stream.write(pw)
+
