@@ -4,18 +4,19 @@ import sys
 from datetime import datetime
 
 def main(args):
-    utc = False
+    local = False
     try:
-        if args[0] == '-u':
-            utc = True
+        if args[0] == '-l':
+            local = True
             args = args[1:]
     except IndexError:
         pass
 
     if len(args) < 1:
-        print 'usage: timestamp [-u] UNIX_STAMP [FORMAT]'
+        print 'usage: timestamp [-l] UNIX_STAMP [FORMAT]'
         print ''
         print 'Convert UNIX_STAMP into a date string according to FORMAT.'
+        print 'If -l is given, print the time in the local timezone.'
         return 1
 
     if '.' in args[0]:
@@ -28,7 +29,7 @@ def main(args):
     if len(args) > 1:
         tformat = args[1]
 
-    if utc:
+    if local:
         t = datetime.fromtimestamp(stamp)
     else:
         t = datetime.utcfromtimestamp(stamp)
