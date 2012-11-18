@@ -1,8 +1,15 @@
 #!/bin/sh
-set -eux
+set -eu
 if [ $# -eq 0 ]; then
+    set -x
     ssh eggplant '/usr/sbin/wol -i 192.168.1.255 00:1f:d0:23:c6:48;
 /usr/sbin/wol -i 192.168.1.255 00:1f:d0:23:c6:89'
 else
-    ssh "$1" 'wakeonlan 00:1f:d0:23:c6:48; wakeonlan 00:1f:d0:23:c6:89'
+    if [ "$1" = "local" ]; then
+        set -x
+        wakeonlan 00:1f:d0:23:c6:48; wakeonlan 00:1f:d0:23:c6:89
+    else
+        set -x
+        ssh "$1" 'wakeonlan 00:1f:d0:23:c6:48; wakeonlan 00:1f:d0:23:c6:89'
+    fi
 fi
