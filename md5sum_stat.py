@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import fcntl
 import hashlib
 import optparse
 import os
@@ -7,7 +8,10 @@ import sys
 
 from datetime import datetime
 
-class ParseError(Exception):
+class HasherError(Exception):
+    pass
+
+class ParseError(HasherError):
     pass
 
 def digest(filename, algorithm='md5', chunk_size=None, binary=False):
@@ -30,13 +34,104 @@ def digest(filename, algorithm='md5', chunk_size=None, binary=False):
 
     return h.hexdigest()
 
-def create_mode(filenames, options):
-    for name in filenames:
-        entry = Entry(filename=name)
-        print entry.to_line()
+class Cache(object):
+    def __init__(self, filename):
+        self.filename = filename
+
+        if not os.path.exists(filename):
+            warn('Creating new cache file %r' % filename)
+            fdno = os.open(filename, os.O_WRONLY|os.O_CREAT|os.O_EXCL, 0666)
+            os.close(fdno)
+
+        self.load()
+
+    def open(self):
+        fd = open(self.filename, 'r+')
+        try:
+            fcntl.lockf(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except IOError, e:
+            if e.errno == errno.EAGAIN:
+                raise HasherError('Failed to lock %r' % self.filename)
+            else:
+                raise
+
+        self.fd = fd
+        self.data = {}
+
+    def load(self):
+        self.open()
+
+        for line in self.fd:
+            self.add_string(line)
+
+        info('Loaded %d entries from cache' % len(self.data))
+        return len(self.data)
+
+    def save(self):
+        info('Saving cache to ' + repr(self.filename))
+        self.fd.seek(0)
+        self.fd.truncate(0)
+        for entry in self.data.itervalues():
+            self.fd.write(entry.to_line() + '\n')
+        self.fd.flush()
+        info('Saved %d cache entries' % len(self.data))
+
+    def add_string(self, line):
+        entry = Entry(string=line)
+        return self.add(entry.filename, entry)
+
+    def add_entry(self, entry):
+        return self.add(entry.filename, entry)
+
+    def add(self, key, value):
+        if self.data.get(key):
+            warn('%r already found in cache' % key)
+        self.data[key] = value
+        return value
+
+    def get(self, key):
+        return self.data[key]
+
+    def __contains__(self, key):
+        return key in self.data
+
+class CreateRunner(object):
+    def __init__(self, filenames, options):
+        if options.cache_file:
+            self.cache = Cache(options.cache_file)
+        else:
+            self.cache = None
+
+        self.filenames = filenames
+        self.opts = options
+
+    def run(self):
+        modified = False
+
+        cache = self.cache
+        for name in self.filenames:
+            if cache:
+                if name in cache:
+                    entry = cache.get(name)
+                    if entry.needs_refresh():
+                        info('refreshing %r' % name)
+                        entry.refresh_data()
+                        modified = True
+                else:
+                    entry = Entry(filename=name)
+                    cache.add_entry(entry)
+                    modified = True
+            else:
+                entry = Entry(filename=name)
+
+        if modified:
+            assert(cache)
+            cache.save()
 
 def warn(message):
     sys.stderr.write('Warning: ' + message + '\n')
+def info(message):
+    sys.stderr.write('Info: ' + message + '\n')
 
 class Entry(object):
     def __init__(self, filename=None, string=None,
@@ -75,7 +170,7 @@ class Entry(object):
 
     def stat(self):
         stats = os.stat(self.filename)
-        return stats.st_mtime, stats.st_size
+        return round(stats.st_mtime, 3), stats.st_size
 
     def check_stats(self):
         """
@@ -83,10 +178,15 @@ class Entry(object):
         """
         mtime, size = self.stat()
         if mtime != self.mtime:
+            warn('mtime of %r has changed to %r' % (self.filename, mtime))
             return False
         if size != self.size:
+            warn('size of %r has changed to %r' % (self.filename, size))
             return False
         return True
+
+    def needs_refresh(self):
+        return not self.check_stats()
 
     def check_digest(self):
         """
@@ -98,7 +198,8 @@ class Entry(object):
         return self.digest, self.mtime, self.size, self.filename
 
     def to_line(self):
-        return ' '.join(map(str, self.to_tuple()))
+        return ' '.join([self.digest, '%0.3f' % self.mtime, str(self.size),
+                         self.filename])
 
 def check_file(filename, options):
     f = open(filename, 'r')
@@ -121,8 +222,8 @@ if __name__ == '__main__':
                  help='read in text mode (default)')
     p.add_option('-c', '--check', action='store_true', dest='check_mode',
                  help='read MD5 sums from the FILEs and check them')
-    p.add_option('-f', '--file', dest='cache', metavar='CACHE',
-                 help='cache checksums in CACHE,'
+    p.add_option('-f', '--file', dest='cache_file', metavar='PATH',
+                 help='cache checksums in PATH,'
                       ' updating if mtime or size changed')
 
     g = optparse.OptionGroup(p,
@@ -135,9 +236,13 @@ if __name__ == '__main__':
     opts, files = p.parse_args()
     if not files:
         p.error('FILE is required')
-        sys.exit(1)
+
+    if opts.check_mode and opts.cache_file:
+        p.error('--check and --file are mutually exclusive')
 
     if opts.check_mode:
         check_mode(files, opts)
     else:
-        create_mode(files, opts)
+        runner = CreateRunner(files, opts)
+        runner.run()
+
