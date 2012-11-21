@@ -93,7 +93,7 @@ class Cache(object):
         info('Saving cache to ' + repr(self.filename))
         self.fd.seek(0)
         self.fd.truncate(0)
-        for entry in self.data.itervalues():
+        for _, entry in sorted(self.data.iteritems()):
             self.fd.write(entry.to_line() + '\n')
         self.fd.flush()
         info('Saved %d cache entries' % len(self.data))
