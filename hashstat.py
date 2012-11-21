@@ -1,5 +1,10 @@
 #!/usr/bin/env python
 
+"""
+Print or check file checksums, modification times, and sizes.
+The MD5 algorithm is used for checksums by default.
+"""
+
 import errno
 import fcntl
 import hashlib
@@ -8,6 +13,13 @@ import os
 import sys
 
 from datetime import datetime
+
+HASH_LENGTHS = {
+    32: 'md5',
+    40: 'sha1',
+    64: 'sha256',
+    128: 'sha512'
+}
 
 class HasherError(Exception):
     pass
@@ -27,7 +39,7 @@ class FailedOpen(VerificationError):
     pass
 
 def digest(filename, algorithm='md5', chunk_size=None, binary=False):
-    """"Compute the md5 digest of a file."""
+    """"Compute the hash digest of a file."""
     h = hashlib.new(algorithm)
 
     if chunk_size is None:
@@ -129,6 +141,10 @@ class CreateRunner(object):
 
     def run(self):
         modified = False
+        if hasattr(self.opts, 'algorithm'):
+            algorithm = self.opts.algorithm
+        else:
+            algorithm = None
 
         cache = self.cache
         for name in self.filenames:
@@ -140,7 +156,7 @@ class CreateRunner(object):
                         entry.refresh_data()
                         modified = True
                 else:
-                    entry = Entry(filename=name)
+                    entry = Entry(filename=name, algorithm=algorithm)
                     cache.add_entry(entry)
                     modified = True
             else:
@@ -206,14 +222,17 @@ def info(message):
 
 class Entry(object):
     def __init__(self, filename=None, string=None,
-                 binary=False, ):
+                 binary=False, algorithm=None):
         if (filename and string) or (filename is None and string is None):
             raise ValueError('exactly one of filename and string is required')
+        if algorithm is None:
+            algorithm = 'md5'
 
         if string:
             self.parse_string(string)
         elif filename:
             self.filename = filename
+            self.algorithm = algorithm
             self.refresh_data()
         else:
             assert(false)
@@ -230,6 +249,12 @@ class Entry(object):
         except ValueError:
             raise ParseError('Cannot parse cache line: %r' % line)
 
+        try:
+            self.algorithm = HASH_LENGTHS[len(digest)]
+        except KeyError:
+            raise ParseError('Cannot find hash algorithm of length %d for %r'
+                             % (len(digest), line))
+
         self.digest = digest
         self.mtime = mtime
         self.size = size
@@ -237,7 +262,7 @@ class Entry(object):
 
     def refresh_data(self):
         self.mtime, self.size = self.stat()
-        self.digest = digest(self.filename)
+        self.digest = digest(self.filename, algorithm=self.algorithm)
 
     def stat(self):
         stats = os.stat(self.filename)
@@ -268,7 +293,7 @@ class Entry(object):
         """
         Return True if the file's hash digest remains the same, else False.
         """
-        new_digest = digest(self.filename)
+        new_digest = digest(self.filename, algorithm=self.algorithm)
         if new_digest == self.digest:
             return True
         else:
@@ -292,7 +317,8 @@ class Entry(object):
                          self.filename])
 
 if __name__ == '__main__':
-    p = optparse.OptionParser(usage='usage: %prog [options] FILE...')
+    p = optparse.OptionParser(usage='usage: %prog [options] FILE...' +
+                              __doc__.rstrip())
     p.add_option('-b', '--binary', action='store_true', dest='binary',
                  help='read in binary mode')
     p.add_option('-t', '--text', action='store_false', dest='binary',
@@ -302,6 +328,8 @@ if __name__ == '__main__':
     p.add_option('-f', '--file', dest='cache_file', metavar='PATH',
                  help='cache checksums in PATH,'
                       ' updating if mtime or size changed')
+    p.add_option('-a', '--algorithm', dest='algorithm',
+                 help='use ALGORITHM for checksums')
 
     g = optparse.OptionGroup(p,
                              'The following options are useful only when'
@@ -320,10 +348,11 @@ if __name__ == '__main__':
     if not files:
         p.error('FILE is required')
 
-    if opts.check_mode and opts.cache_file:
-        p.error('--check and --file are mutually exclusive')
-
     if opts.check_mode:
+        if opts.cache_file:
+            p.error('--check and --file are mutually exclusive')
+        if opts.algorithm:
+            p.error('Algorithm is determined automatically in check mode')
         runner = CheckRunner(files, opts)
         status = runner.run()
     else:
