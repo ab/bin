@@ -147,24 +147,25 @@ class CreateRunner(object):
             algorithm = None
 
         cache = self.cache
-        for name in self.filenames:
-            if cache:
-                if name in cache:
-                    entry = cache.get(name)
-                    if entry.needs_refresh():
-                        info('refreshing %r' % name)
-                        entry.refresh_data()
+        try:
+            for name in self.filenames:
+                if cache:
+                    if name in cache:
+                        entry = cache.get(name)
+                        if entry.needs_refresh():
+                            info('refreshing %r' % name)
+                            entry.refresh_data()
+                            modified = True
+                    else:
+                        entry = Entry(filename=name, algorithm=algorithm)
+                        cache.add_entry(entry)
                         modified = True
                 else:
-                    entry = Entry(filename=name, algorithm=algorithm)
-                    cache.add_entry(entry)
-                    modified = True
-            else:
-                entry = Entry(filename=name)
-
-        if modified:
-            assert(cache)
-            cache.save()
+                    entry = Entry(filename=name)
+        finally:
+            if modified:
+                assert(cache)
+                cache.save()
 
         return 0
 
