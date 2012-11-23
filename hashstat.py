@@ -21,6 +21,8 @@ HASH_LENGTHS = {
     128: 'sha512'
 }
 
+BASENAME = os.path.basename(__file__)
+
 class HasherError(Exception):
     pass
 
@@ -37,26 +39,6 @@ class DigestMismatch(VerificationError):
     pass
 class FailedOpen(VerificationError):
     pass
-
-def digest(filename, algorithm='md5', chunk_size=None, binary=False):
-    """"Compute the hash digest of a file."""
-    h = hashlib.new(algorithm)
-
-    if chunk_size is None:
-        chunk_size = 128 * h.block_size
-
-    if binary:
-        mode = 'rb'
-    else:
-        mode = 'r'
-
-    with open(filename, mode) as f:
-        chunk = f.read(chunk_size)
-        while chunk:
-            h.update(chunk)
-            chunk = f.read(chunk_size)
-
-    return h.hexdigest()
 
 class Cache(object):
     def __init__(self, filename, readonly=True):
@@ -140,34 +122,46 @@ class CreateRunner(object):
         self.opts = options
 
     def run(self):
-        modified = False
+        self.modified = False
+        failures = False
+
+        # hash each file
+        try:
+            for name in self.filenames:
+                try:
+                    print self.hash_file(name)
+                except FailedOpen, e:
+                    sys.stderr.write(BASENAME + ': ' + name + ': ' + e.message
+                                     + '\n')
+                    failures = True
+        finally:
+            # always save the cache, even when bailing out
+            if self.modified:
+                self.cache.save()
+
+        return 1 if failures else 0
+
+    def hash_file(self, filename):
         if hasattr(self.opts, 'algorithm'):
             algorithm = self.opts.algorithm
         else:
             algorithm = None
 
-        cache = self.cache
-        try:
-            for name in self.filenames:
-                if cache:
-                    if name in cache:
-                        entry = cache.get(name)
-                        if entry.needs_refresh():
-                            info('refreshing %r' % name)
-                            entry.refresh_data()
-                            modified = True
-                    else:
-                        entry = Entry(filename=name, algorithm=algorithm)
-                        cache.add_entry(entry)
-                        modified = True
-                else:
-                    entry = Entry(filename=name)
-        finally:
-            if modified:
-                assert(cache)
-                cache.save()
+        if self.cache:
+            if filename in self.cache:
+                entry = self.cache.get(filename)
+                if entry.needs_refresh():
+                    info('refreshing %r' % filename)
+                    entry.refresh_data()
+                    self.modified = True
+            else:
+                entry = Entry(filename=filename, algorithm=algorithm)
+                self.cache.add_entry(entry)
+                self.modified = True
+        else:
+            entry = Entry(filename=filename)
 
-        return 0
+        return entry.to_line()
 
 class CheckRunner(object):
     def __init__(self, filenames, options):
@@ -241,14 +235,14 @@ class Entry(object):
     def parse_string(self, string):
         parts = string.rstrip('\r\n').split(' ', 3)
         if len(parts) != 4:
-            raise ParseError('Cannot parse cache line: %r' % line)
+            raise ParseError('Cannot parse hashstat line: %r' % string)
 
         digest, mtime, size, name = parts
         try:
             mtime = float(mtime)
             size = int(size)
         except ValueError:
-            raise ParseError('Cannot parse cache line: %r' % line)
+            raise ParseError('Cannot parse hashstat line: %r' % string)
 
         try:
             self.algorithm = HASH_LENGTHS[len(digest)]
@@ -263,17 +257,46 @@ class Entry(object):
 
     def refresh_data(self):
         self.mtime, self.size = self.stat()
-        self.digest = digest(self.filename, algorithm=self.algorithm)
+        self.digest = self.make_digest()
 
     def stat(self):
-        stats = os.stat(self.filename)
+        """Stat a file and return its mtime and size."""
+        try:
+            stats = os.stat(self.filename)
+        except (IOError, OSError), e:
+            raise FailedOpen(e.strerror)
+
         return round(stats.st_mtime, 3), stats.st_size
+
+    def make_digest(self, chunk_size=None, binary=False):
+        """"Compute the hash digest of a file."""
+        h = hashlib.new(self.algorithm)
+
+        if chunk_size is None:
+            chunk_size = 128 * h.block_size
+
+        if binary:
+            mode = 'rb'
+        else:
+            mode = 'r'
+
+        try:
+            with open(self.filename, mode) as f:
+                chunk = f.read(chunk_size)
+                while chunk:
+                    h.update(chunk)
+                    chunk = f.read(chunk_size)
+        except IOError, e:
+            raise FailedOpen(e.strerror)
+
+        return h.hexdigest()
 
     def verify_stat(self):
         """
         Return True if the file's mtime and size remain the same, else False.
         """
         mtime, size = self.stat()
+
         if mtime != self.mtime:
             raise MtimeMismatch('%r: mtime has changed to %r' %
                                 (self.filename, mtime))
@@ -294,7 +317,7 @@ class Entry(object):
         """
         Return True if the file's hash digest remains the same, else False.
         """
-        new_digest = digest(self.filename, algorithm=self.algorithm)
+        new_digest = self.make_digest()
         if new_digest == self.digest:
             return True
         else:
