@@ -7,5 +7,5 @@ if [ $# -lt 1 ]; then
 fi
 
 set -eux
-fetch-password "$@" | grep password | awk '{print $NF}' | tr -d '\n' | \
-    xclip -loops 0 -verbose
+fetch-password "$@" | grep password | head -1 | awk '{print $NF}' | \
+    tr -d '\n' | xclip -loops 0 -verbose
