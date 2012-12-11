@@ -5,19 +5,19 @@ import time
 from datetime import datetime
 
 def main(args):
-    local = False
+    local = True
     try:
-        if args[0] == '-l':
-            local = True
+        if args[0] == '-u':
+            local = False
             args = args[1:]
     except IndexError:
         pass
 
     if len(args) < 1:
-        print 'usage: timestamp [-l] UNIX_STAMP [FORMAT]'
+        print 'usage: timestamp [-u] UNIX_STAMP [FORMAT]'
         print ''
         print 'Convert UNIX_STAMP into a date string according to FORMAT.'
-        print 'If -l is given, print the time in the local timezone.'
+        print 'If -u is given, print the time in UTC.'
         return 1
 
     if '.' in args[0]:
