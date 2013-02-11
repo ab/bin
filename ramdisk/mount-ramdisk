@@ -57,7 +57,9 @@ do_start() {
 }
 
 do_stop() {
-    umount "$mount"
+    if [ -e "$mount" ]; then
+        umount "$mount"
+    fi
     lvchange -an "$vgname/$lvname"
     lvremove "$vgname/$lvname" >/dev/null
     vgremove "$vgname" >/dev/null
