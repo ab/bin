@@ -2,10 +2,6 @@
 set -eu
 set -o pipefail
 
-# punctuation according to gnome-terminal
-# word separators: !"$'()*;<>[\]^`{|}
-# non separators:  #%&+,-./:=?@_~
-
 default_opts="-sy"
 
 usage() {
@@ -19,6 +15,15 @@ It sends pwgen a length that is 25% larger than LENGTH to get enough data.
 
 If PWGEN_OPTS are given, they will be passed to pwgen. Otherwise, default
 options of "$default_opts" will be used.
+
+Punctuation according to gnome-terminal:
+    word separators: !"$'()*;<>[\\]^\`{|}
+    non separators:  #%&+,-./:=?@_~
+
+There are 14 non-separators, so with default options there are 76 possible
+symbols. Generated passwords will have somewhat less than 6.248 bits of entropy
+per character because each one of symbols, uppercase, lowercase, and numbers
+are required to be present by default.
 
 OPTIONS
     -v      Be more verbose.
