@@ -1,0 +1,78 @@
+#!/bin/bash
+set -eu
+
+# non-separators are for reference only, verified against apg 2.2.3
+separators=\''!"$()*;<>[\]^`{|}'
+non_separators='#%&+,-./:=?@_~'
+
+usage() {
+    cat >&2 <<EOM
+usage: $(basename "$0") [OPTIONS] LENGTH [NUM_OF_PASS]
+
+Generate random passwords using apg that have no punctuation characters that
+gnome-terminal considers to be word separators.
+
+There are 14 non-separators, so with default options (i.e. not pronounceable),
+there are 76 possible symbols and generated passwords should have 6.248 bits of
+entropy per character.
+
+       chars   entropy
+         12      75
+         16      100
+         20      125
+         41      256
+
+
+Punctuation according to gnome-terminal:
+    word separators: $separators
+    non separators:  $non_separators
+
+
+OPTIONS:
+
+  -h    show this help message
+  -p    generate pronounceable passwords (default is purely random)
+
+EOM
+}
+
+pronounceable=
+num_of_pass=1
+
+while getopts hp OPT; do
+    case "$OPT" in
+        p)
+            pronounceable=1
+            ;;
+        h)
+            usage
+            exit 0
+            ;;
+        \?)
+            usage
+            exit 1
+            ;;
+    esac
+done
+
+shift $((OPTIND-1))
+
+if [ $# -lt 1 ]; then
+    usage
+    exit 1
+fi
+
+length="$1"
+
+if [ $# -ge 2 ]; then
+    num_of_pass="$2"
+fi
+
+if [ -n "$pronounceable" ]; then
+    opts="-a 0"
+else
+    opts="-a 1"
+fi
+
+set -x
+apg $opts -M sncl -E "$separators" -n "$num_of_pass" -m "$length" -x "$length"
