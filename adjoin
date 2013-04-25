@@ -1,0 +1,48 @@
+#!/usr/bin/env ruby
+# Andy's Join: join lines in streams by separator.
+
+def usage
+  STDERR.puts <<-EOM
+usage: #{File.basename($0)} SEPARATOR [FILE...]
+
+Join each line in each FILE by SEPARATOR. If no FILE is not given, read from
+standard input.
+  EOM
+end
+
+def main(sep, *streams)
+  streams.each do |stream|
+    begin
+      print stream.readline.chomp
+    rescue EOFError
+      # ignore
+    end
+    stream.each_line do |line|
+      print sep
+      print line.chomp
+    end
+  end
+
+  print "\n"
+end
+
+if ARGV.empty?
+  usage
+  exit 1
+end
+
+sep = ARGV.shift
+
+if ARGV.empty?
+  streams = [STDIN]
+else
+  streams = ARGV.map {|filename|
+    if filename == '-'
+      STDIN
+    else
+      File.open(filename, 'r')
+    end
+  }
+end
+
+main(sep, *streams)
