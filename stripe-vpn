@@ -16,7 +16,11 @@ case "$(hostname -s)" in
         ;;
 esac
 
-set -x
-
-nmcli con up uuid "$uuid"
-exec ssh dev8
+if [ $# -gt 0 ] && [ "$1" = "down" ]; then
+    set -x
+    exec nmcli con down uuid "$uuid"
+else
+    set -x
+    nmcli con up uuid "$uuid"
+    exec ssh dev8
+fi
