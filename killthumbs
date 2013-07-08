@@ -1,13 +1,14 @@
 #!/bin/sh
 
+dryrun=
 if [ "$1" = "-n" ]; then
 	dryrun=1
 	shift
 fi
 
-if [ -z "$1" ]; then
+if [ -z "$1" -o "$1" = "-h" ]; then
 	echo "$(basename $0) [-n] MINS"
-	echo "Remove all files from ~/.thumbnails/ older than MINS minutes."
+	echo "Remove all files from ~/.thumbnails/ newer than MINS minutes."
 	exit 1
 fi
 

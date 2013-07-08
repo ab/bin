@@ -1,11 +1,11 @@
 #!/bin/bash
-# v1.0
+# v1.1
 set -e
 set -o nounset
 
-# Get version name and strip off component after last hyphen.
+# Get version name and strip off component after second hyphen.
 full_version="$(uname -r)"
-version="${full_version%-*}"
+version="$(echo "$full_version" | cut -d'-' -f 1-2)"
 echo "Running kernel: $version ($full_version)"
 
 pattern='~ilinux-(image|headers)-[0-9].* !'"$version"
