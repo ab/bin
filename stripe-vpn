@@ -5,7 +5,7 @@ case "$(hostname -s)" in
         uuid=c49376a4-98ad-400c-9600-ffd8cbd2cceb
         ;;
     hoth)
-        uuid=231cc72b-7207-47fa-aceb-a7937f22713d
+        uuid=c7b9af5a-ef6c-4a86-98ee-3370c557e054
         ;;
     wisp)
         uuid=f4b6fe62-6737-47aa-bbb9-f763c58eb711
