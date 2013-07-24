@@ -1,0 +1,7 @@
+#!/usr/bin/env ruby
+
+require 'ipaddr'
+
+IPAddr.new(ARGV.fetch(0)).to_range.each do |addr|
+  puts addr
+end
