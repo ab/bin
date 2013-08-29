@@ -1,0 +1,68 @@
+#!/bin/bash
+# dynamic dns client for noip.com
+
+set -eu
+set -o pipefail
+
+# TODO: add --force option to force update even if it's nochg?
+
+log() {
+    echo >&2 "$@"
+}
+logrun() {
+    log "+ $@"
+    "$@"
+}
+basename="$(basename "$0")"
+slog() {
+    log "$@"
+    logger -t "$basename" <<< "$@"
+}
+
+# duplicate stdout/stderr to syslog
+#exec 1> >(tee -a /dev/fd/1 | logger -t "$(basename "$0")")
+#exec 2> >(tee -a /dev/fd/2 | logger -t "$(basename "$0")")
+
+# add fd 3 for printing stuff with a prefix
+exec 3> >(sed 's/^/>>> /')
+
+trap "echo >&2 ERROR" EXIT
+
+slog "Starting up"
+
+NOIP_RCFILE="$HOME/.noiprc"
+. "$NOIP_RCFILE"
+
+log "hostname: $NOIP_HOSTNAME"
+log "noip.com username: $NOIP_USERNAME"
+log "noip.com password: $(sed 's/./*/g' <<< "$NOIP_PASSWORD")"
+
+pub_addr="$(logrun curl -Ssf https://agb.me/ip/ | tee -a /dev/fd/3)"
+dns_addr="$(logrun dig +short "$NOIP_HOSTNAME" | tee -a /dev/fd/3)"
+
+log "Public IP address from HTTP: $pub_addr"
+log "Public IP address from DNS:  $dns_addr"
+
+if [ $# -gt 0 ]; then
+    log "Overriding public IP address with '$1'"
+    pub_addr="$1"
+fi
+
+NOIP_HOST="${NOIP_HOST:-dynupdate.no-ip.com}"
+NOIP_ENDPOINT="https://$NOIP_HOST/nic/update"
+
+if [ "$pub_addr" != "$dns_addr" ]; then
+    slog "Updating $NOIP_HOSTNAME to $pub_addr (was $dns_addr)"
+    netrc="machine $NOIP_HOST login $NOIP_USERNAME password $NOIP_PASSWORD"
+    logrun curl -sSf --netrc-file <(echo "$netrc") \
+        "$NOIP_ENDPOINT?hostname=$NOIP_HOSTNAME&myip=$pub_addr" >&3
+    echo >&3
+else
+    slog "No update to $NOIP_HOSTNAME needed"
+fi
+
+# close fd 3 to flush output
+3>&-
+
+slog "All done"
+trap - EXIT
