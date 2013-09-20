@@ -54,6 +54,12 @@ case "$1" in
 esac
 shift
 
-echo -ne "\e[$bold;${fg}m"
+if [ -t 1 ]; then
+    echo -ne "\e[$bold;${fg}m"
+fi
+
 echo "$@"
-echo -ne "\e[m"
+
+if [ -t 1 ]; then
+    echo -ne "\e[m"
+fi
