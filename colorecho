@@ -1,0 +1,59 @@
+#!/bin/bash
+set -eu
+
+usage() {
+    cat >&2 <<EOM
+usage: $(basename "$0") [--dim] COLOR [options] [STRING...]
+
+Echo STRING(s) to standard output. If standard output is a TTY, also echo the
+standard TTY escapes for COLOR to print colorized output.
+
+See \`help echo\` in bash for options passed to echo.
+
+Options:
+
+    --dim     Don't echo bold colors
+
+Known colors, aliases:
+    black, gray, grey
+    red
+    green
+    yellow
+    blue
+    purple, violet
+    cyan
+    white
+
+EOM
+}
+
+bold=1
+if [ $# -ge 1 ] && [ "$1" = "--dim" ]; then
+    bold=0
+    shift
+fi
+
+if [ $# -lt 1 ]; then
+    usage
+    exit 1
+fi
+case "$1" in
+    black|gray|grey) fg=30 ;;
+    red)             fg=31 ;;
+    green)           fg=32 ;;
+    yellow)          fg=33 ;;
+    blue)            fg=34 ;;
+    purple|violet)   fg=35 ;;
+    cyan)            fg=36 ;;
+    white)           fg=37 ;;
+    *)
+        usage
+        echo >&2 "Unknown color: $1"
+        exit 1
+        ;;
+esac
+shift
+
+echo -ne "\e[$bold;${fg}m"
+echo "$@"
+echo -ne "\e[m"
