@@ -14,13 +14,13 @@ Options:
 
     --dim     Don't echo bold colors
 
-Known colors, aliases:
-    black, gray, grey
+Known colors, (aliases):
+    black (gray, grey)
     red
     green
     yellow
     blue
-    purple, violet
+    magenta (purple, violet)
     cyan
     white
 
@@ -38,14 +38,14 @@ if [ $# -lt 1 ]; then
     exit 1
 fi
 case "$1" in
-    black|gray|grey) fg=30 ;;
-    red)             fg=31 ;;
-    green)           fg=32 ;;
-    yellow)          fg=33 ;;
-    blue)            fg=34 ;;
-    purple|violet)   fg=35 ;;
-    cyan)            fg=36 ;;
-    white)           fg=37 ;;
+    black|gray|grey)       fg=30 ;;
+    red)                   fg=31 ;;
+    green)                 fg=32 ;;
+    yellow)                fg=33 ;;
+    blue)                  fg=34 ;;
+    magenta|purple|violet) fg=35 ;;
+    cyan)                  fg=36 ;;
+    white)                 fg=37 ;;
     *)
         usage
         echo >&2 "Unknown color: $1"
