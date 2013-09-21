@@ -4,8 +4,6 @@
 set -eu
 set -o pipefail
 
-# TODO: add --force option to force update even if it's nochg?
-
 log() {
     echo >&2 "$@"
 }
@@ -18,6 +16,14 @@ slog() {
     log "$@"
     logger -t "$basename" <<< "$@"
 }
+
+force_update=
+if [ $# -gt 0 ]; then
+    if [ "$1" = "--force" ]; then
+        force_update=1
+        shift
+    fi
+fi
 
 # duplicate stdout/stderr to syslog
 #exec 1> >(tee -a /dev/fd/1 | logger -t "$(basename "$0")")
@@ -51,8 +57,18 @@ fi
 NOIP_HOST="${NOIP_HOST:-dynupdate.no-ip.com}"
 NOIP_ENDPOINT="https://$NOIP_HOST/nic/update"
 
+
 if [ "$pub_addr" != "$dns_addr" ]; then
     slog "Updating $NOIP_HOSTNAME to $pub_addr (was $dns_addr)"
+    update=1
+elif [ -n "$force_update" ]; then
+    slog "Forcing update even though $NOIP_HOSTNAME is already $pub_addr"
+    update=1
+else
+    update=
+fi
+
+if [ -n "$update" ]; then
     netrc="machine $NOIP_HOST login $NOIP_USERNAME password $NOIP_PASSWORD"
     logrun curl -sSf --netrc-file <(echo "$netrc") \
         "$NOIP_ENDPOINT?hostname=$NOIP_HOSTNAME&myip=$pub_addr" >&3
