@@ -1,0 +1,30 @@
+#!/usr/bin/env python
+import os
+import sys
+
+def run(in_stream, out_stream):
+    trailing_eof = False
+    while True:
+        data = in_stream.read(2048)
+        if not data:
+            if not trailing_eof:
+                out_stream.write('\n')
+            break
+
+        out_stream.write(data)
+        if data[-1] == '\n':
+            trailing_eof = True
+        else:
+            trailing_eof = False
+
+if __name__ == '__main__':
+    basename = os.path.basename(sys.argv[0])
+    try:
+        run(sys.stdin, sys.stdout)
+    except KeyboardInterrupt:
+        print ''
+        sys.exit(130)
+    except IOError, e:
+        sys.stderr.write("%s: %s: %s\n" % (basename, e.filename, e.strerror))
+        sys.exit(1)
+
