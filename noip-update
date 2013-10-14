@@ -17,12 +17,56 @@ slog() {
     logger -t "$basename" <<< "$@"
 }
 
+usage() {
+    cat >&2 <<EOM
+usage: $(basename "$0") [options] [ADDRESS]
+
+Configuration values are taken from ~/.noiprc.
+
+If ADDRESS is given, change the DDNS record to ADDRESS regardless of what our
+public IP address seems to be.
+
+options:
+
+    -h, --help    Show this message
+    --force       Force an update even if we think none is needed
+    --frob        Twiddle the DDNS record to prevent expiry
+
+EOM
+}
+
 force_update=
-if [ $# -gt 0 ]; then
-    if [ "$1" = "--force" ]; then
-        force_update=1
-        shift
-    fi
+frob_update=
+while [ $# -gt 0 ] && [[ $1 = -* ]]; do
+    case "$1" in
+        --force)
+            force_update=1
+            shift
+            ;;
+        --frob)
+            # --frob implies --force
+            frob_update=1
+            force_update=1
+            shift
+            ;;
+        -h,--help)
+            usage
+            exit 0
+            ;;
+        *)
+            usage
+            exit 1
+            ;;
+    esac
+done
+
+force_addr=
+if [ $# -gt 1 ]; then
+    usage
+    exit 1
+elif [ $# -eq 1 ]; then
+    force_addr="$1"
+    shift
 fi
 
 # duplicate stdout/stderr to syslog
@@ -39,6 +83,12 @@ slog "Starting up"
 NOIP_RCFILE="$HOME/.noiprc"
 . "$NOIP_RCFILE"
 
+if [ -n "$frob_update" ]; then
+    slog "Performing frob update of $NOIP_HOSTNAME"
+    "$0" --force 192.0.2.1
+    slog "Proceeding with frob back to normal address"
+fi
+
 log "hostname: $NOIP_HOSTNAME"
 log "noip.com username: $NOIP_USERNAME"
 log "noip.com password: $(sed 's/./*/g' <<< "$NOIP_PASSWORD")"
@@ -49,9 +99,9 @@ dns_addr="$(logrun dig +short "$NOIP_HOSTNAME" | tee -a /dev/fd/3)"
 log "Public IP address from HTTP: $pub_addr"
 log "Public IP address from DNS:  $dns_addr"
 
-if [ $# -gt 0 ]; then
-    log "Overriding public IP address with '$1'"
-    pub_addr="$1"
+if [ -n "$force_addr" ]; then
+    log "Overriding public IP address with '$force_addr'"
+    pub_addr="$force_addr"
 fi
 
 NOIP_HOST="${NOIP_HOST:-dynupdate.no-ip.com}"
