@@ -1,0 +1,39 @@
+#!/usr/bin/env python
+import optparse
+import os
+import sys
+
+def signal_exit(signal):
+    print 'Sending ourself signal', signal
+    os.kill(os.getpid(), signal)
+
+def system_exit(status):
+    print 'Exiting with status', status
+    sys.exit(status)
+
+def main():
+    p = optparse.OptionParser()
+    p.add_option('-s', '--signal', dest='signal', help='exit on SIGNAL')
+    p.add_option('-e', '--exit', dest='status',
+                 help='exit with code STATUS')
+    opts, args = p.parse_args()
+
+    if opts.signal:
+        try:
+            signal = int(opts.signal)
+        except ValueError:
+            signal = opts.signal
+        signal_exit(signal)
+    elif opts.status:
+        try:
+            status = int(opts.status)
+        except ValueError:
+            status = opts.status
+        system_exit(status)
+    else:
+        p.print_help()
+        sys.stderr.write("\nError: must pass -s or -e\n")
+        sys.exit(2)
+
+if __name__ == '__main__':
+    main()
