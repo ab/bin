@@ -10,7 +10,12 @@ def parse_date(line):
 
 data = []
 while True:
-    line = raw_input('day hour:min -- ').strip()
+    try:
+        line = raw_input('day hour:min -- ').strip()
+    except EOFError:
+        print ''
+        break
+
     if not line:
         break
 
