@@ -15,7 +15,7 @@ create_userdirs() {
         uid="$(echo "$line" | cut -f3 -d:)"
         if [ "$uid" -ge "$uid_min" -a "$uid" -le "$uid_max" ]; then
             name="$(echo "$line" | cut -f1 -d:)"
-            mkdir "$mount/$name"
+            mkdir -m 0700 "$mount/$name"
             chown "$name:" "$mount/$name"
         fi
     done
