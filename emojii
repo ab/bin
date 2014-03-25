@@ -1,0 +1,22 @@
+#!/usr/bin/env python
+# coding=utf-8
+
+import sys
+
+ALL_EMOJII = {
+    'unimpressed': 'ಠ_ಠ',
+    'shrug': '¯\_(ツ)_/¯'
+}
+def emojii_for(word):
+    return ALL_EMOJII[word]
+
+if len(sys.argv) > 1:
+    word = sys.argv[1]
+    try:
+        print emojii_for(word)
+    except KeyError:
+        print 'Unknown emojii: %r' % word
+        sys.exit(1)
+else:
+    for name, emojii in ALL_EMOJII.iteritems():
+        print name + ':', emojii
