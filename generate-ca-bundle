@@ -4,6 +4,11 @@ require 'openssl'
 
 class ParseError < Exception; end
 
+unless defined?(Enumerator)
+  # Ruby 1.8 compatibility
+  Enumerator = Enumerable::Enumerator
+end
+
 class CaBundle
   attr_reader :bundle_path, :certs, :certs_data
 
