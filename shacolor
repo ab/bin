@@ -1,0 +1,54 @@
+#!/bin/bash
+set -eu
+
+NUM=256
+
+if [ $# -ge 1 ]; then
+  case "$1" in
+    -1)   NUM=1   ; shift ;;
+    -2)   NUM=256 ; shift ;;
+    -224) NUM=224 ; shift ;;
+    -256) NUM=256 ; shift ;;
+    -384) NUM=384 ; shift ;;
+    -512) NUM=512 ; shift ;;
+  esac
+fi
+
+case "$NUM" in
+  224) rows=2; cols=14 ;;
+  256) rows=2; cols=16 ;;
+  384) rows=3; cols=16 ;;
+  512) rows=4; cols=16 ;;
+  1)   rows=2; cols=10 ;;
+  *)
+      echo >&2 "error: unexpected sha: sha$NUM"
+      exit 1
+      ;;
+esac
+
+color_for_nibble() {
+    if [ $# -lt 1 ]; then
+        echo >&2 "must pass nibble"
+        return 1
+    fi
+
+    num=$((0x$1))
+
+    echo -en "\033[48;5;${num}m"
+    echo -n " $1 "
+    echo -en "\033[0m"
+}
+
+"sha${NUM}sum" "$@" | while read hash filename; do
+  echo "$hash $filename"
+  i=0
+  for (( row=0; row < $rows; row++ )); do
+    for (( col=0; col < $cols; col++ )); do
+      color_for_nibble "${hash:$i:2}"
+      i=$((i + 2))
+    done
+    echo ''
+  done
+done
+
+# vim: set sw=2 ts=2 :
