@@ -1,38 +1,62 @@
 #!/usr/bin/env python
 
+import optparse
 import sys
 import time
 from datetime import datetime
 
-def main(args):
-    local = True
-    try:
-        if args[0] == '-u':
-            local = False
-            args = args[1:]
-    except IndexError:
-        pass
+VERSION = '1.2'
 
-    if len(args) < 1:
-        print 'usage: timestamp [-u] UNIX_STAMP [FORMAT]'
-        print ''
-        print 'Convert UNIX_STAMP into a date string according to FORMAT.'
-        print 'If -u is given, print the time in UTC.'
+def main():
+    usage = '''%prog [options] UNIX_STAMP...
+
+Convert each UNIX_STAMP into a date string according to strftime FMT.
+'''.rstrip()
+    p = optparse.OptionParser(usage=usage, version = '%prog ' + VERSION)
+    p.add_option('-u', '--utc', dest='local', action='store_false',
+                 help='print time in UTC', default=True)
+
+    p.add_option('-f', '--format', help='strftime format', dest='tformat',
+                 metavar='FMT')
+    p.add_option('-s', '--stamp', help='print current timestamp', dest='stamp',
+                 action='store_true')
+    p.add_option('-i', '--integer', help='print integer times',
+                 dest='integer', action='store_true')
+
+    opts, args = p.parse_args()
+
+    if opts.stamp:
+        print_current_timestamp(integer=opts.integer)
+        return 0
+
+    if not args:
+        p.print_help()
         return 1
 
-    if '.' in args[0]:
-        stamp = float(args[0])
-        tformat = '%F %R:%S.%f'
+    for stamp in args:
+        print_stamp_as_string(stamp, opts)
+
+    return 0
+
+def print_stamp_as_string(stamp, opts):
+
+    if '.' in stamp:
+        stamp = float(stamp)
+        if opts.integer:
+            tformat = '%F %R:%S'
+        else:
+            tformat = '%F %R:%S.%f'
     else:
-        stamp = int(args[0])
+        stamp = int(stamp)
         tformat = '%F %R:%S'
-    default_format = True
 
-    if len(args) > 1:
-        tformat = args[1]
+    if opts.tformat:
         default_format = False
+        tformat = opts.tformat
+    else:
+        default_format = True
 
-    if local:
+    if opts.local:
         t = datetime.fromtimestamp(stamp)
         tzname = time.strftime('%Z')
     else:
@@ -44,7 +68,12 @@ def main(args):
         sys.stdout.write(' ' + tzname)
     sys.stdout.write('\n')
 
-    return 0
+def print_current_timestamp(integer=False):
+    if integer:
+        fmt = '%s'
+    else:
+        fmt = '%s.%f'
+    sys.stdout.write(datetime.now().strftime(fmt) + '\n')
 
 if __name__ == '__main__':
-    sys.exit(main(sys.argv[1:]))
+    sys.exit(main())
