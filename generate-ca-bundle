@@ -1,5 +1,8 @@
 #!/usr/bin/env ruby
 
+# Generate a normalized X.509 SSL certificate bundle in PEM format.
+# Certificates will be sorted by subject and then by "Not Before" date.
+
 require 'openssl'
 
 class ParseError < Exception; end
