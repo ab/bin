@@ -1,0 +1,90 @@
+#!/usr/bin/env ruby
+
+require 'openssl'
+
+class ParseError < Exception; end
+
+class CaBundle
+  attr_reader :bundle_path, :certs, :certs_data
+
+  def initialize(bundle_path)
+    @bundle_path = bundle_path
+    @certs_data = parse_all_certificates(@bundle_path)
+    @certs = @certs_data.map {|cert| OpenSSL::X509::Certificate.new(cert)}
+
+    @certs_data.zip(@certs).each do |orig, cert|
+      if orig != cert.to_pem
+        raise "Parse mismatch: #{orig.inspect} != #{cert.to_pem.inspect}"
+      end
+    end
+  end
+
+  def parse_all_certificates(bundle_file)
+    unless block_given?
+      return Enumerator.new(self, :parse_all_certificates, bundle_file)
+    end
+
+    File.open(bundle_file, 'r') do |f|
+      in_cert = false
+      cert = nil
+      f.each_line do |line|
+        case line.chomp
+        when '-----BEGIN CERTIFICATE-----'
+          if in_cert
+            raise ParseError.new("Unexpected BEGIN CERTIFICATE")
+          end
+
+          in_cert = true
+          cert = line
+
+        when '-----END CERTIFICATE-----'
+          unless in_cert
+            raise ParseError.new("Unexpected END CERTIFICATE")
+          end
+
+          cert << line
+          yield cert
+
+          in_cert = false
+          cert = nil
+
+        else
+          if in_cert
+            if line.chomp =~ /\A[a-zA-Z0-9\/+=]*\z/
+              cert << line
+            else
+              raise ParseError.new("Unexpected line: #{line.inspect}")
+            end
+          end
+        end
+      end
+    end
+  end
+
+  def sorted_certs
+    @certs.sort_by {|c| [c.subject.to_a, c.not_before]}
+  end
+
+  def generate_bundle
+    lines = []
+    sorted_certs.each do |cert|
+      lines << '=' * 64
+      lines << pretty_subject(cert.subject)
+      # lines << 'Not Before: ' + cert.not_before.strftime('%Y-%m-%d')
+      # lines << 'Not After:  ' + cert.not_after.strftime('%Y-%m-%d')
+      lines << cert.to_pem
+    end
+
+    lines.join("\n")
+  end
+
+  def pretty_subject(subject)
+    subject.to_a.map {|part|
+      part.fetch(0) + ': ' + part.fetch(1)
+    }.join("\n")
+  end
+end
+
+source_bundle = ARGV.fetch(0, '/etc/ssl/certs/ca-certificates.crt')
+
+puts CaBundle.new(source_bundle).generate_bundle
