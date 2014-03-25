@@ -13,7 +13,14 @@ class CaBundle
     @certs = @certs_data.map {|cert| OpenSSL::X509::Certificate.new(cert)}
 
     @certs_data.zip(@certs).each do |orig, cert|
-      if orig != cert.to_pem
+      if orig.gsub(/[\r\n]/, '') != cert.to_pem.gsub(/[\r\n]/, '')
+        STDERR.puts "From source file:"
+        STDERR.puts orig
+        STDERR.puts "Generated from ruby:"
+        STDERR.puts cert.to_pem
+        STDERR.puts "As text:"
+        STDERR.puts cert.to_text
+
         raise "Parse mismatch: #{orig.inspect} != #{cert.to_pem.inspect}"
       end
     end
