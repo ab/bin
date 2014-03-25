@@ -19,7 +19,7 @@ case "$NUM" in
   256) rows=2; cols=16 ;;
   384) rows=3; cols=16 ;;
   512) rows=4; cols=16 ;;
-  1)   rows=2; cols=10 ;;
+  1)   rows=1; cols=20 ;;
   *)
       echo >&2 "error: unexpected sha: sha$NUM"
       exit 1
