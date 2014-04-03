@@ -39,7 +39,22 @@ color_for_nibble() {
     echo -en "\033[0m"
 }
 
-"sha${NUM}sum" "$@" | while read hash filename; do
+sha_prog() {
+  local num
+  num="$1"
+  shift
+
+  case "$OSTYPE" in
+    darwin*)
+      shasum -a "$num" "$@"
+      ;;
+    *)
+      "sha${num}sum" "$@"
+      ;;
+  esac
+}
+
+sha_prog "$NUM" "$@" | while read hash filename; do
   echo "$hash $filename"
   i=0
   for (( row=0; row < $rows; row++ )); do
