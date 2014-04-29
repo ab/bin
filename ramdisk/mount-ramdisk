@@ -61,7 +61,7 @@ do_stop() {
         umount "$mount"
     fi
     lvchange -an "$vgname/$lvname"
-    lvremove "$vgname/$lvname" >/dev/null
+    lvremove -f "$vgname/$lvname" >/dev/null
     vgremove "$vgname" >/dev/null
 }
 
