@@ -1,0 +1,16 @@
+#!/bin/bash
+set -eux
+
+if [ $# -ne 2 ]; then
+  echo >&2 "usage: $0 TIMESTAMP MESSAGE"
+  exit 1
+fi
+
+declare -i target
+
+target="$1"
+message="$2"
+
+sleep $(($target - $(date +%s)))
+
+/home/andy/.gem/ruby/1.9.1/bin/t update "$message"
