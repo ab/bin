@@ -1,6 +1,51 @@
 #!/bin/sh
 
-date +%c
-for tz in "$@"; do
-    TZ="$tz" date +%c
+set -eu
+
+conf_file="$HOME/.config/timezones"
+
+usage() {
+    basename="$(basename "$0")"
+    cat >&2 <<EOM
+usage: $basename [Options]
+
+Display the time in several time zones. The zones will be taken from \$ZONES,
+if set, or from ~/.config/timezones.
+
+Options will be passed through to date(1). See tzselect(1) or
+/usr/share/zoneinfo for lists of timezones.
+
+Examples:
+
+    ZONES='UTC Japan/Tokyo' $basename
+
+    $basename +%c
+
+    $basename -d '+3 hours' '+%F %R'
+
+EOM
+}
+
+if [ $# -ge 1 ] && [ "$1" = "-h" -o "$1" = "--help" ]; then
+    usage
+    exit
+fi
+
+ZONES="${ZONES:-}"
+
+if [ -z "$ZONES" ]; then
+    if [ -e "$conf_file" ]; then
+        ZONES="$(cat "$conf_file")"
+    else
+        usage
+        exit 1
+    fi
+fi
+
+for tz in $ZONES; do
+    if [ ! -e "/usr/share/zoneinfo/$tz" ]; then
+        echo >&2 "Warning: not sure whether $tz is a valid timezone"
+    fi
+    output="$(TZ="$tz" date "$@")"
+    echo "$output	$tz"
 done
