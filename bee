@@ -1,0 +1,34 @@
+#!/usr/bin/env ruby
+
+def convert(time)
+  hour, minute = time.split(':', 2)
+
+  hour = Integer(hour)
+  minute = Integer(minute)
+
+  def func(x)
+    2**(1-x)
+  end
+
+  input = hour + minute / 60.0
+  score = func(input)
+
+  ["%.3f" % score, "%02d%02d" % [hour, minute]]
+end
+
+def convert_print(time)
+  score, comment = convert(time)
+  puts score + ' "' + comment + '"'
+end
+
+if ARGV.empty?
+  while true
+    resp = $stdin.readline.chomp
+    break if resp.empty?
+    convert_print(resp)
+  end
+else
+  ARGV.each do |time|
+    convert_print(time)
+  end
+end
