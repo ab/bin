@@ -11,7 +11,8 @@ def format_delta(delta):
         s += str(delta.days) + ' '
         s += 'days ' if delta.days > 1 else 'day '
 
-    s += "%d:%02d" % (delta.seconds // 3600, (delta.seconds // 60) % 60)
+    s += "%d:%02d" % ((delta.seconds // 60) % 60,
+                           delta.seconds % 60)
 
     return s
 
@@ -21,7 +22,7 @@ def timer(stream=sys.stdout):
         stream.write('\r')
         stream.write(format_delta(datetime.now() - start))
         stream.flush()
-        time.sleep(60)
+        time.sleep(10)
 
 def clear():
     os.system('clear')
