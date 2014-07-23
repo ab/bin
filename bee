@@ -10,15 +10,31 @@ def convert(time)
     2**(1-x)
   end
 
+  # assume previous day for hours >= 20
+  if hour >= 20
+    return ['1', '*%02d%02d' % [hour, minute]]
+  end
+
+  # times before 1 am get a score of 1
+  if hour == 0
+    return ['1', '%02d%02d' % [hour, minute]]
+  end
+
   input = hour + minute / 60.0
   score = func(input)
 
   ["%.3f" % score, "%02d%02d" % [hour, minute]]
 end
 
-def convert_print(time)
+def convert_print(line)
+  parts = line.split
+  if parts.length != 2
+    raise 'Expected format: DAYOFMONTH HOUR:MINUTE'
+  end
+  daynum, time = parts
+
   score, comment = convert(time)
-  puts score + ' "' + comment + '"'
+  puts daynum + ' ' + score + ' "' + comment + '"'
 end
 
 if ARGV.empty?
@@ -28,7 +44,7 @@ if ARGV.empty?
     convert_print(resp)
   end
 else
-  ARGV.each do |time|
-    convert_print(time)
+  ARGV.each_with_index do |time, i|
+    convert_print("##{i + 1} " + time)
   end
 end
