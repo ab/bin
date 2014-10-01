@@ -3,6 +3,8 @@ set -eu
 case "$(hostname -s)" in
     coruscant)
         uuid=c49376a4-98ad-400c-9600-ffd8cbd2cceb
+        uuid_2=69903ab8-e19f-4971-ab78-2cb6c4b306e6
+        uuid_matasano=ba1629a8-5b37-4aab-8400-dd9aff25cf8c
         ;;
     hoth)
         uuid=c7b9af5a-ef6c-4a86-98ee-3370c557e054
@@ -19,9 +21,21 @@ case "$(hostname -s)" in
         ;;
 esac
 
-if [ $# -gt 0 ] && [ "$1" = "down" ]; then
-    set -x
-    exec nmcli con down uuid "$uuid"
+if [ $# -gt 0 ]; then
+    case "$1" in
+        down)
+            set -x
+            exec nmcli con down uuid "$uuid"
+            ;;
+        secondary)
+            set -x
+            nmcli con up uuid "$uuid_2"
+            ;;
+        matasano)
+            set -x
+            nmcli con up uuid "$uuid_matasano"
+            ;;
+    esac
 else
     set -x
     nmcli con up uuid "$uuid"
