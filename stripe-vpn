@@ -8,6 +8,8 @@ case "$(hostname -s)" in
         ;;
     hoth)
         uuid=c7b9af5a-ef6c-4a86-98ee-3370c557e054
+        uuid_2=8ff3ab02-9cc4-46c8-8f59-62efa7d23a0f
+        uuid_matasano=8d554140-47c1-4894-86d2-a2f9b01664dc
         ;;
     wisp)
         uuid=f4b6fe62-6737-47aa-bbb9-f763c58eb711
