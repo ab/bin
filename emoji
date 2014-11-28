@@ -3,20 +3,28 @@
 
 import sys
 
-ALL_EMOJII = {
-    'unimpressed': 'ಠ_ಠ',
-    'shrug': '¯\_(ツ)_/¯'
+ALIASES = {
+    'fliptable': 'flip',
+    'table': 'flip',
 }
-def emojii_for(word):
-    return ALL_EMOJII[word]
+
+ALL_EMOJI = {
+    'unimpressed': 'ಠ_ಠ',
+    'shrug': '¯\_(ツ)_/¯',
+    'flip': '(╯°□°)╯︵ ┻━┻',
+}
+def emoji_for(word):
+    word = ALIASES.get(word, word)
+    return ALL_EMOJI[word]
 
 if len(sys.argv) > 1:
     word = sys.argv[1]
     try:
-        print emojii_for(word)
+        print emoji_for(word)
     except KeyError:
-        print 'Unknown emojii: %r' % word
+        print 'Unknown emoji: %r' % word
         sys.exit(1)
 else:
-    for name, emojii in ALL_EMOJII.iteritems():
-        print name + ':', emojii
+    for name, emoji in ALL_EMOJI.iteritems():
+        print name + ':', emoji
+
