@@ -28,16 +28,20 @@ end
 
 def convert_print(line)
   parts = line.split
-  if parts.length != 2
+  if parts.length < 2
     raise 'Expected format: DAYOFMONTH HOUR:MINUTE'
   end
-  daynum, time = parts
+  daynum, time, source_comment = parts
 
   score, comment = convert(time)
+
+  comment = comment + ' ' + source_comment if source_comment
+
   puts daynum + ' ' + score + ' "' + comment + '"'
 end
 
 if ARGV.empty?
+  STDERR.puts "format: DAYOFMONTH HOUR:MINUTE [COMMENT]"
   while true
     resp = $stdin.readline.chomp
     break if resp.empty?
