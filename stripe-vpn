@@ -6,6 +6,9 @@ case "$(hostname -s)" in
         uuid_2=69903ab8-e19f-4971-ab78-2cb6c4b306e6
         uuid_matasano=ba1629a8-5b37-4aab-8400-dd9aff25cf8c
         ;;
+    endor)
+        uuid=98f9df9c-45d9-45ec-83aa-efdb68c468cb
+        ;;
     hoth)
         uuid=c7b9af5a-ef6c-4a86-98ee-3370c557e054
         uuid_2=8ff3ab02-9cc4-46c8-8f59-62efa7d23a0f
