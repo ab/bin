@@ -8,6 +8,9 @@ case "$(hostname -s)" in
         ;;
     endor)
         uuid=98f9df9c-45d9-45ec-83aa-efdb68c468cb
+        uuid_1=480bd48e-cefa-4296-9292-5ec8ab561a89
+        uuid_2=6d41994f-06f5-4940-bf59-214379a49f7d
+        uuid_3=2a329eb9-0090-4d8a-925a-b28f2d75e678
         ;;
     hoth)
         uuid=c7b9af5a-ef6c-4a86-98ee-3370c557e054
