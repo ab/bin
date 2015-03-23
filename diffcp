@@ -52,7 +52,7 @@ if which colordiff > /dev/null; then
     diff="colordiff"
 fi
 
-"$diff" -u "$src" "$dst"
+"$diff" -u -- "$src" "$dst"
 
 ret=$?
 
