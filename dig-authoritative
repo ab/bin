@@ -1,0 +1,107 @@
+#!/usr/bin/env ruby
+require 'resolv'
+require 'set'
+
+def usage
+  STDERR.puts <<EOM
+usage: #{File.basename($0)} [options] NAME [TYPE]
+
+Look up authoritative name servers for NAME (or appropriate parent domain), and
+issue a dig query for NAME to those servers.
+EOM
+end
+
+# http://en.wikipedia.org/wiki/List_of_DNS_record_types#Resource_records
+VALID_DNS_RECORD_TYPES = Set.new(%w{
+  A
+  AAAA
+  AFSDB
+  APL
+  CAA
+  CDNSKEY
+  CDS
+  CERT
+  CNAME
+  DHCID
+  DLV
+  DNAME
+  DNSKEY
+  DS
+  HIP
+  IPSECKEY
+  KEY
+  KX
+  LOC
+  MX
+  NAPTR
+  NS
+  NSEC
+  NSEC3
+  NSEC3PARAM
+  PTR
+  RRSIG
+  RP
+  SIG
+  SOA
+  SRV
+  SSHFP
+  TA
+  TKEY
+  TLSA
+  TSIG
+  TXT
+})
+
+def get_ns_servers(name)
+  Resolv::DNS.open { |dns|
+    dns.getresources(name, Resolv::DNS::Resource::IN::NS)
+  }.map {|r| r.name.to_s }
+end
+
+def get_ns_servers_for_subdomain(name)
+  parts = name.split('.')
+  while !parts.empty?
+    servers = get_ns_servers(parts.join('.'))
+    return servers if !servers.empty?
+    parts.shift
+  end
+
+  raise "Failed to find any NS servers for #{name.inspect}"
+end
+
+def main(args)
+  args = args.dup
+
+  # the dig option format is baroque, so we just support a subset
+  # if the last option is a valid DNS record type, treat args as:
+  #     [options] NAME TYPE
+  # else:
+  #     [options] NAME
+
+  rtype = nil
+
+  if args.length >= 2
+    if VALID_DNS_RECORD_TYPES.include?(args.last.upcase)
+      rtype = args.pop
+    end
+  end
+
+  if args.empty?
+    usage
+    return 1
+  end
+
+  name = args.pop
+
+  nameservers = get_ns_servers_for_subdomain(name)
+
+  dig_args = nameservers.map {|s| '@' + s} + args + [name]
+  dig_args << rtype if rtype
+
+  STDERR.puts('+ dig ' + dig_args.join(' '))
+  exec(['dig', 'dig'], *dig_args)
+end
+
+if $0 == __FILE__
+  main(ARGV)
+end
