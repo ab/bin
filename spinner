@@ -1,0 +1,8 @@
+#!/bin/sh
+
+while true; do
+    for char in '|' '/' '-' '\'; do
+        echo >&2 -n "$char"
+        sleep "${1-0.5}"
+    done
+done
