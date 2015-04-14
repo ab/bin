@@ -30,6 +30,10 @@ def redacted(card_number):
 if __name__ == '__main__':
     orig_number = getpass('number: ')
     number = re.sub('\D+', '', orig_number)
+    if not number:
+        print 'no number provided'
+        sys.exit(2)
+
     print redacted(number),
     if is_luhn_valid(number):
         print 'is luhn valid'
