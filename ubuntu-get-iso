@@ -1,0 +1,38 @@
+#!/bin/bash
+set -e
+
+usage() {
+	echo "$(basename $0) [wget-opts] BASE_URL MAJOR [MINOR]"
+	exit 1
+}
+
+if [ -z "$1" ]; then
+	usage
+fi
+
+# Parse any wget options
+opts=
+while [ "${1:0:1}" = "-" ]; do
+	opts="$opts$1 "
+	shift
+done
+
+if [ -z "$1" -o -z "$2" ]; then
+	usage
+fi
+base="$1"
+major="$2"
+if [ -n "$3" ]; then
+	minor=".$3"
+else
+	minor=
+fi
+
+set -o nounset
+echo "Downloading ubuntu $major$minor from $base..."
+
+set -x
+
+wget -c $opts "$base/$major/"{MD5,SHA1,SHA256}SUMS{,.gpg}
+wget -c $opts "$base/$major/ubuntu-$major$minor-"{desktop,server}-{i386,amd64}.iso
+
