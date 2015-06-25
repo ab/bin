@@ -12,6 +12,26 @@ ALL_EMOJI = {
     'unimpressed': 'ಠ_ಠ',
     'shrug': '¯\_(ツ)_/¯',
     'flip': '(╯°□°)╯︵ ┻━┻',
+    'tm': '™',
+
+    'cat': '(^._.^)ﾉ',
+    'catface': '(^人^)',
+    'sideeye': '(¬_¬)',
+
+    'o_O': 'ミ●﹏☉ミ',
+    'o_O2': '(⊙_◎)',
+    'o_O3': '(⊙﹏⊙✿)',
+
+    'dance1': '┌(・。・)┘♪',
+    'dance2': '└(・。・)┐♪',
+    'dance3': '♪┌(˘⌣˘)ʃ',
+
+    'scared': '(´･_･`)',
+
+    'flowerhappy': '(✿◠‿◠)',
+    'hug': '⊂((・▽・))⊃',
+
+    'facepalm': '(>_<)',
 }
 def emoji_for(word):
     word = ALIASES.get(word, word)
