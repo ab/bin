@@ -1,0 +1,1 @@
+../code/android/sdk/platform-tools/adb
