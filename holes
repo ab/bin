@@ -43,6 +43,8 @@ def count_filled(filename, blocksize=None, print_dots=False):
         else:
             blocksize = 4096
 
+    null_block = '\0' * blocksize
+
     with open(filename, 'r') as fh:
         while True:
             block = fh.read(blocksize)
@@ -51,7 +53,10 @@ def count_filled(filename, blocksize=None, print_dots=False):
 
             total += 1
 
-            if not_null_re.search(block):
+            # if not_null_re.search(block):
+            if ((len(block) == len(null_block) and block != null_block) or
+                (len(block) != len(null_block)
+                    and block.count('\0') == len(block))):
                 count += 1
                 if print_dots:
                     sys.stdout.write(FILL_CHAR)
