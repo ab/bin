@@ -1,0 +1,13 @@
+#!/bin/sh
+
+if [ $# -lt 2 ]; then
+    cat >&2 <<EOM
+usage: $(basename "$0") INPUT_IMAGE OUTPUT_IMAGE
+EOM
+    exit 1
+fi
+
+set -eux
+
+convert "$1" \( +clone -background black -shadow 80x20+0+15 \) \
+    +swap -background transparent -layers merge +repage "$2"
