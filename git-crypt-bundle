@@ -1,0 +1,145 @@
+#!/bin/bash
+set -eu
+
+VERSION="0.1"
+
+. "$(dirname "$0")/bash-backtrace.sh"
+
+usage() {
+    basename="$(basename "$0")"
+    cat >&2 <<EOM
+usage: $basename create <bundle-directory> <GPG-recipient>
+   or: $basename pull
+   or: $basename push
+   or: $basename pull-local
+   or: $basename push-local
+   or: $basename version
+EOM
+}
+
+run() {
+    echo >&2 "+ $*"
+    "$@"
+}
+
+default_git_ignore() {
+    cat <<EOM
+/${GCB_FILE}
+/${GCB_FILE}.gpg
+/${GCB_PASS_FILE}
+EOM
+}
+
+read_config() {
+    BUNDLE_DIRECTORY="$(run git config cryptbundle.directory)"
+    GPG_RECIPIENT="$(run git config cryptbundle.gpg-recipient)"
+}
+
+cmd_create() {
+    bundle_directory="$1"
+    gpg_recip="$2"
+
+    mkdir "$bundle_directory"
+
+    run git config cryptbundle.directory "$bundle_directory"
+    run git config cryptbundle.gpg-recipient "$gpg_recip"
+
+    cd "$bundle_directory"
+    random_passphrase > "$GCB_PASS_FILE"
+    run git init
+    default_git_ignore > .gitignore
+    run touch "${GCB_FILE}.gpg.gpg"
+    run git add .
+    run git commit -m 'Initial import'
+}
+
+random_passphrase() {
+    run head -c 32 /dev/urandom | openssl base64
+}
+
+decrypt_bundle() {
+    pushd "$BUNDLE_DIRECTORY"
+
+    rm -fv "$GCB_FILE" "${GCB_FILE}.gpg"
+    run gpg -d --batch "${GCB_FILE}.gpg.gpg"
+    run gpg -d --batch --passphrase-fd 0 "${GCB_FILE}.gpg" < "$GCB_PASS_FILE"
+
+    popd
+}
+
+encrypt_bundle() {
+    pushd "$BUNDLE_DIRECTORY"
+
+    rm -fv "${GCB_FILE}.gpg"
+    run gpg -c --batch --passphrase-fd 0 "$GCB_FILE" < "$GCB_PASS_FILE"
+    rm -fv "${GCB_FILE}.gpg.gpg"
+    run gpg -e -r "$GPG_RECIPIENT" --batch "${GCB_FILE}.gpg"
+
+    popd
+}
+
+cmd_pull_local() {
+    decrypt_bundle
+    run git pull --ff-only "$GCB_REMOTE" "$GCB_BRANCH"
+}
+
+create_bundle() {
+    bundle_path="$BUNDLE_DIRECTORY/${GCB_FILE}"
+    run git bundle create "$bundle_path" "$GCB_LOCAL_BRANCH"
+}
+
+cmd_push_local() {
+    create_bundle
+    encrypt_bundle
+}
+
+cmd_pull() {
+    pushd "$BUNDLE_DIRECTORY"
+    run git pull --ff-only
+    popd
+
+    cmd_pull_local
+}
+
+cmd_push() {
+    cmd_push_local
+
+    pushd "$BUNDLE_DIRECTORY"
+    git commit -a -m 'Update crypt bundle.'
+    run git push
+    popd
+}
+
+if [ $# -lt 1 ]; then
+    usage
+    exit 1
+fi
+
+GCB_REMOTE="${GCB_REMOTE-bundle}"
+GCB_BRANCH="${GCB_BRANCH-master}"
+GCB_LOCAL_BRANCH="${GCB_LOCAL_BRANCH-master}"
+GCB_BASENAME="crypt"
+GCB_FILE="${GCB_BASENAME}.bundle"
+GCB_PASS_FILE="passphrase"
+
+case "$1" in
+    create)
+        if [ $# -lt 3 ]; then
+            usage
+            exit 1
+        fi
+        shift
+        cmd_create "$@"
+        ;;
+    pull) read_config; cmd_pull ;;
+    push) read_config; cmd_push ;;
+    pull-local) read_config; cmd_pull_local ;;
+    push-local) read_config; cmd_push_local ;;
+    version)
+        echo "$(basename "$0") version $VERSION"
+        ;;
+    *)
+        usage
+        exit 1
+        ;;
+esac
