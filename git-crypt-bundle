@@ -44,6 +44,8 @@ cmd_create() {
     run git config cryptbundle.directory "$bundle_directory"
     run git config cryptbundle.gpg-recipient "$gpg_recip"
 
+    run git remote add "$GCB_REMOTE" "$bundle_directory/$GCB_FILE"
+
     cd "$bundle_directory"
     random_passphrase > "$GCB_PASS_FILE"
     run git init
@@ -61,8 +63,9 @@ decrypt_bundle() {
     pushd "$BUNDLE_DIRECTORY"
 
     rm -fv "$GCB_FILE" "${GCB_FILE}.gpg"
-    run gpg -d --batch "${GCB_FILE}.gpg.gpg"
-    run gpg -d --batch --passphrase-fd 0 "${GCB_FILE}.gpg" < "$GCB_PASS_FILE"
+    run gpg -d --batch -o "${GCB_FILE}.gpg" "${GCB_FILE}.gpg.gpg"
+    run gpg -d --batch --passphrase-fd 0 -o "$GCB_FILE" \
+        "${GCB_FILE}.gpg" < "$GCB_PASS_FILE"
 
     popd
 }
