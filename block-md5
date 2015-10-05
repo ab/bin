@@ -1,11 +1,24 @@
 #!/usr/bin/python
 import hashlib
 import sys
+import json
+import base64
+import re
+
+from itertools import izip_longest
+
+CHECKSUM_RE = re.compile('^(\d+) (\d+) ([a-f0-9]+)$')
+PATCH_RE = re.compile('^(\d+) ([a-zA-Z0-9+/=]*)$')
+DEBUG = True
 
 # Testing suggests that 32K causes us to be CPU bound. With faster disks, it
 # may be desirable to increase this higher.
 BLOCK_SIZE = 32 * 1024
 #BLOCK_SIZE = 4 * 1024 # TODO DEBUG
+
+def log_debug(message):
+    if DEBUG:
+        sys.stderr.write('DEBUG: ' + message + '\n')
 
 def block_sums(stream, block_size=BLOCK_SIZE):
     while True:
@@ -17,18 +30,87 @@ def block_sums(stream, block_size=BLOCK_SIZE):
         md5.update(block)
         yield (current_pos, block_size, md5.hexdigest())
 
-def do_file(filename):
+def block_md5_file(filename):
     fh = open(filename, 'r')
     for offset, size, checksum in block_sums(fh):
         print offset, size, checksum
 
-def do_files(filenames):
-    for filename in filenames:
-        do_file(filename)
+def cmd_md5(argv):
+    for filename in argv:
+        block_md5_file(filename)
+
+def parse_checksum_line(line):
+    result = CHECKSUM_RE.search(line)
+    if not result:
+        raise ValueError('Could not parse %r' % line)
+
+    return [int(result.group(1)), int(result.group(2)), result.group(3)]
+
+def prepare_patch(local_stream, local_checksum, remote_checksum):
+    # it would be really ideal not to use base64 here, but whatever
+    for local, remote in izip_longest(local_checksum, remote_checksum):
+        if local is None:
+            # local file is shorter
+            # We ought to generate some kind of truncate instruction in the
+            # patch file, but this is not yet implemented
+            raise NotImplementedError('Local file is shorter')
+
+        l_offset, l_size, l_hash = parse_checksum_line(local)
+
+        if remote is None:
+            # remote file is shorter
+            r_offset = l_offset
+            r_size = l_size
+            r_hash = None
+        else:
+            r_offset, r_size, r_hash = parse_checksum_line(remote)
+
+        assert l_offset == r_offset, 'offset mismatch'
+        assert l_size == r_size, 'size mismatch'
+
+        if l_hash == r_hash:
+            continue
+
+        log_debug('at %d, %r != %r' % (l_offset, l_hash, r_hash))
+
+        local_stream.seek(l_offset)
+
+        data = local_stream.read(l_size)
+        yield (l_offset, data)
+
+def cmd_prepare_patch(local_filename, local_checksum, remote_checksum):
+    for offset, data in prepare_patch(open(local_filename, 'r'),
+                                      open(local_checksum, 'r'),
+                                      open(remote_checksum, 'r')):
+        print offset,
+        print base64.b64encode(data)
+
+def parse_patch_line(line):
+    result = PATCH_RE.search(line)
+    if not result:
+        raise ValueError('Cannot parse patch line: %r' % line)
+
+    return (int(result.group(1)), base64.b64decode(result.group(2)))
+
+def apply_patch(data_stream, patch_stream):
+    for line in patch_stream:
+        offset, new_data = parse_patch_line(line)
+
+        log_debug('Writing %d bytes at offset %d' % (len(new_data), offset))
+        data_stream.seek(offset)
+        data_stream.write(new_data)
+
+def cmd_apply_patch(data_file, patch_file):
+    apply_patch(open(data_file, 'r+'), open(patch_file, 'r'))
 
 if __name__ == '__main__':
-    filenames = sys.argv[1:]
-    if not filenames:
-        print 'TODO: USAGE' # TODO
-        sys.exit(1)
-    do_files(filenames)
+    command = sys.argv[1]
+
+    # TODO: usage
+
+    if command == 'md5':
+        cmd_md5(sys.argv[2:])
+    elif command == 'patch':
+        cmd_prepare_patch(sys.argv[2], sys.argv[3], sys.argv[4])
+    elif command == 'apply':
+        cmd_apply_patch(sys.argv[2], sys.argv[3])
