@@ -1,17 +1,71 @@
 #!/usr/bin/env ruby
 # Andy's Join: join lines in streams by separator.
 
+require 'optparse'
+
 def usage
   STDERR.puts <<-EOM
-usage: #{File.basename($0)} SEPARATOR [FILE...]
+usage: #{File.basename($0)} [OPTIONS] SEPARATOR [FILE...]
 
 Join each line in each FILE by SEPARATOR. If no FILE is not given, read from
 standard input.
   EOM
 end
 
-def main(sep, *streams)
+# List of single character escape sequences
+ESCAPES = {
+  "\\\\" => "\\",
+  '\a' => "\a",
+  '\b' => "\b",
+  '\e' => "\e",
+  '\f' => "\f",
+  '\n' => "\n",
+  '\r' => "\r",
+  '\s' => "\s",
+  '\t' => "\t",
+  '\v' => "\v",
+}
+
+# There has to be a better way to do this.
+def apply_backslash_escapes(string)
+  string = string.dup
+
+  string.gsub!(/\\(\\|[abefnrstv]|0\d{1,3}|x\h{1,2}|\d{1,3})/) do |matched|
+    captured = $1
+    if ESCAPES.include?(matched)
+      ESCAPES.fetch(matched)
+    else
+      if captured =~ /\A\d{1,3}\z/
+        num = Integer(captured, 8)
+        num.chr
+      else
+        case captured[0]
+        when '0'
+          num = Integer(captured[1..-1], 8)
+          num.chr
+        when 'x'
+          num = Integer(captured[1..-1], 16)
+          num.chr
+        else
+          raise "Unexpected escape: #{matched.inspect}"
+        end
+      end
+    end
+  end
+
+  string
+end
+
+def adjoin(sep, *streams)
+  first_stream = true
+
   streams.each do |stream|
+    if first_stream
+      first_stream = false
+    else
+      print sep
+    end
+
     begin
       print stream.readline.chomp
     rescue EOFError
@@ -26,23 +80,78 @@ def main(sep, *streams)
   print "\n"
 end
 
-if ARGV.empty?
-  usage
-  exit 1
-end
+def main
+  options = {}
+  optparse = OptionParser.new do |opts|
+    opts.banner = <<-EOM
+usage: #{File.basename($0)} [OPTIONS] SEPARATOR [FILE...]
 
-sep = ARGV.shift
+Join each line in each FILE by SEPARATOR. If no FILE is not given, read from
+standard input.
 
-if ARGV.empty?
-  streams = [STDIN]
-else
-  streams = ARGV.map {|filename|
-    if filename == '-'
-      STDIN
-    else
-      File.open(filename, 'r')
+For example:
+
+  $ seq 1 10 | adjoin ,
+  1,2,3,4,5,6,7,8,9,10
+
+  $ seq 1 5 | adjoin -e '\\t'
+  1\t2\t3\t4\t5
+
+  $ adjoin - 1to5.txt 6to10.txt
+  1-2-3-4-5-6-7-8-9-10
+
+Options:
+    EOM
+
+    opts.on('-h', '--help', 'Display this message') do
+      puts opts
+      exit
     end
-  }
+
+    opts.on('-e', '--escape',
+            'Enable interpretation of backslash escapes (buggy)') do
+      options[:escapes] = true
+    end
+
+    opts.on('-0', '--null', 'Use a separator of NUL') do
+      options[:null] = true
+    end
+  end
+
+  optparse.parse!
+
+  if options[:null]
+    sep = "\0"
+  else
+    sep = ARGV.shift
+  end
+
+  if sep.nil?
+    puts optparse
+    exit 1
+  end
+
+  if options[:escapes]
+    sep = apply_backslash_escapes(sep)
+  end
+
+  if ARGV.empty?
+    streams = [STDIN]
+  else
+    streams = ARGV.map {|filename|
+      if filename == '-'
+        STDIN
+      else
+        File.open(filename, 'r')
+      end
+    }
+  end
+
+  adjoin(sep, *streams)
+
+  0
 end
 
-main(sep, *streams)
+if $0 == __FILE__
+  exit main
+end
