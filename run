@@ -1,0 +1,11 @@
+#!/bin/sh
+
+# This will be superseded by run / daterun aliases in your shell
+# configuration, if any.
+
+if [ "$(basename "$0")" = 'daterun' ]; then
+    date >&2 '+@ %Y-%m-%d %H:%M:%S %z'
+fi
+
+echo >&2 "+ $*"
+exec "$@"
