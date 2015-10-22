@@ -1,38 +1,92 @@
 #!/bin/bash
-set -e
+set -eu
+
+MIRROR="${MIRROR-http://mirrors.us.kernel.org/ubuntu-releases}"
 
 usage() {
-	echo "$(basename $0) [wget-opts] BASE_URL MAJOR [MINOR]"
-	exit 1
+    cat >&2 <<EOM
+usage: $(basename $0) [options] VERSION
+
+Download Ubuntu ISOs from a release mirror.
+
+Options:
+
+    -h          Print this help message
+    -m MIRROR   Use MIRROR as base URL rather than default.
+
+Default mirror: $MIRROR
+
+
+For example:
+
+    # Download Ubuntu 14.04.4 LTS
+    $ $(basename $0) 14.04.4
+
+EOM
 }
 
-if [ -z "$1" ]; then
-	usage
-fi
+i386_desktop=1
+i386_server=
 
-# Parse any wget options
-opts=
-while [ "${1:0:1}" = "-" ]; do
-	opts="$opts$1 "
-	shift
+wget_opts=
+
+while getopts hm: OPT; do
+    case $OPT in
+        h)
+            usage
+            exit 0
+            ;;
+        m)
+            MIRROR="$OPTARG"
+            ;;
+        \?)
+            usage
+            exit 1
+            ;;
+    esac
 done
 
-if [ -z "$1" -o -z "$2" ]; then
-	usage
-fi
-base="$1"
-major="$2"
-if [ -n "$3" ]; then
-	minor=".$3"
-else
-	minor=
+shift $((OPTIND-1))
+
+if [ $# -lt 1 ]; then
+    usage
+    exit 1
 fi
 
-set -o nounset
-echo "Downloading ubuntu $major$minor from $base..."
+version="$1"
+
+if [[ $version =~ ^([0-9]+\.[0-9]+)(\.([0-9]+))?$ ]]; then
+    major="${BASH_REMATCH[1]}"
+    minor="${BASH_REMATCH[3]}"
+else
+    echo "Invalid version: $version"
+    exit 2
+fi
+
+echo >&2 "Downloading Ubuntu $version"
+echo >&2 "Mirror: $MIRROR"
+
+declare -a files urls
+files=(
+    {MD5,SHA1,SHA256}SUMS{,.gpg}
+    "ubuntu-$version-desktop-amd64.iso"
+    "ubuntu-$version-server-amd64.iso"
+)
+urls=()
+
+if [ -n "$i386_desktop" ]; then
+    files+=("ubuntu-$version-desktop-i386.iso")
+fi
+if [ -n "$i386_server" ]; then
+    files+=("ubuntu-$version-server-i386.iso")
+fi
+
+echo >&2 "Files to download:"
+for file in "${files[@]}"; do
+    echo >&2 "  $file"
+    urls+=("$MIRROR/$major/$file")
+done
 
 set -x
 
-wget -c $opts "$base/$major/"{MD5,SHA1,SHA256}SUMS{,.gpg}
-wget -c $opts "$base/$major/ubuntu-$major$minor-"{desktop,server}-{i386,amd64}.iso
-
+exec wget -c $wget_opts "${urls[@]}"
