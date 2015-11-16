@@ -1,0 +1,560 @@
+#!/bin/bash
+#
+# Copyright (c) 2013- Stripe, Inc. (https://stripe.com)
+#
+# git-auto-update is published under the MIT license:
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+
+set -e
+
+basename="$(basename "$0")"
+
+debug() {
+    if [ -n "$GAU_DEBUG" ]; then
+        echo >&2 "$basename: $*"
+    fi
+}
+
+debugrun() {
+    debug '+' "$@"
+    "$@"
+}
+run() {
+    echo >&2 "+ $*"
+    "$@"
+}
+
+# debug *all* git commands
+git() {
+    debug "+ git" "$@"
+    env git "$@"
+}
+
+color_echo() {
+    color="$1"
+    shift
+
+    if [ -t 2 ]; then
+        echo >&2 -ne "\033[$color"
+        echo >&2 -n "$*"
+        echo >&2 -e "\033[m"
+    else
+        echo >&2 "$*"
+    fi
+}
+
+yellow() {
+    color_echo "1;33m" "$*"
+}
+red() {
+    color_echo "1;31m" "$*"
+}
+
+info() {
+    echo >&2 "$basename:" "$@"
+}
+warn() {
+    yellow "$basename:" "$@"
+}
+error() {
+    red "$basename:" "$@"
+}
+
+check_commit_signature() {
+    ref="$1"
+
+    if [ ! -e .sign-commits ]; then
+      info "$PWD doesn't appear to require signed commits (no .sign-commits)"
+      info "Skipping signature check"
+      return 0
+    fi
+
+    debug "checking signature on $ref"
+
+    # git stupidly returns empty output for %G? when the key is not found, so
+    # we have to do this to distinguish between an unknown key and no sig
+
+    gpg_output="$(git log -1 --pretty="%GG" "$ref")"
+    if grep "public key not found" <<< "$gpg_output"; then
+        key_id="$(grep -oE 'key ID.*$' <<< "$gpg_output" | awk '{print $NF}')"
+        info "Fetching $key_id from $GAU_KEYSERVER"
+        gpg --recv-keys --keyserver "$GAU_KEYSERVER" "$key_id"
+    fi
+
+    # first determine whether the signature is valid at all
+    validity="$(git log -1 --pretty="%G?" "$ref")"
+    case "$validity" in
+        G)
+            # OK
+            debug "valid signature on $ref"
+            ;;
+        B)
+            error "BAD signature on $ref!"
+            git_log_one "$ref"
+            return 2
+            ;;
+        U)
+            warn "Untrusted signature on $ref"
+            return 2
+            ;;
+        N)
+            case "$(git log -1 --pretty="%GG" "$ref")"  in
+                gpg:*)
+                    warn "Untrusted signature on $ref"
+                    return 2
+                    ;;
+                *)
+                    error "NO signature on $ref!"
+                    git_log_one "$ref"
+                    committer=$(git log -1 --pretty="%cn <%ce>" "$ref")
+                    error "Refusing to auto-update to an untrusted revision. Please"
+                    error "ask $committer to sign their commits in the future!"
+                    return 2
+                    ;;
+            esac
+            ;;
+        *)
+            error "Unexpected output from git! Validity was '$validity'"
+            error "Please talk to Carl: he didn't think this could happen"
+            git_log_one "$ref"
+            return 1
+            ;;
+    esac
+
+    # next determine whether it a trusted key, fetching gpg output again
+    gpg_output="$(git log -1 --pretty="%GG" "$ref")"
+    if echo "$gpg_output" | grep "WARNING"; then
+        warn "signature on $ref is good but not trusted"
+        git_log_one "$ref"
+        return 1
+    fi
+
+    debug "signature is all good"
+    return 0
+}
+
+git_log_one() {
+    git --no-pager log -1 --decorate --show-signature "$@" >&2
+}
+git_log_revs() {
+    git --no-pager log --oneline --decorate "$@" >&2
+}
+
+ruby_version_from_symlink() {
+    case "$1" in
+        1.8.7)
+            echo '1.8.7-p375'
+            return 0
+            ;;
+        1.9.3)
+            echo '1.9.3-p551'
+            return 0
+            ;;
+        2.0.0)
+            echo '2.0.0-p647'
+            return 0
+            ;;
+        2.1)
+            echo '2.1.7'
+            return 0
+            ;;
+        2.2)
+            echo '2.2.3'
+            return 0
+            ;;
+        *)
+            error "I don't know how to build Ruby $1! You'll have to ask for help"
+            return 1
+            ;;
+    esac
+}
+
+# Ask the user whether it is OK to install a new Ruby version. Return
+# 0 for yes, 1 for now. If we don't understand the response or stdin
+# is not a terminal, return according to $GAU_RUBY_DEFAULT_YES.
+ask_ruby_install() {
+    if [ -t 0 ]; then
+        info "You need Ruby $version, but it is not installed"
+        read -p "Can I build a new Ruby? [Y/n] " ans
+        if [[ $ans == [nN]* ]]; then
+            return 1
+        elif [[ $ans == [yY]* ]]; then
+            return 0
+        else
+            debug "Could not parse user response: '$ans'"
+        fi
+    else
+        debug "Stdin is not a TTY"
+    fi
+
+    if [ -n "$GAU_RUBY_DEFAULT_YES" ]; then
+        debug "Returning default yes"
+        return 0
+    else
+        debug "Returning default no"
+        return 1
+    fi
+}
+
+update_ruby() {
+    symlink="$1"
+    version="$(ruby_version_from_symlink "$symlink")"
+    if ask_ruby_install "$version"; then
+        rbenv install "$version"
+        ln -s "$version" "$(rbenv root)/versions/$symlink"
+        RBENV_VERSION="$version" gem install bundler
+    else
+        yellow "Not installing Ruby $version (symlinked as $symlink)"
+    fi
+}
+
+check_ruby() {
+    ref="$1"
+    # make sure we have the Ruby interpreter specified by upstream
+    if git rev-parse --verify --quiet --no-revs "$ref":.ruby-version; then
+        debug "upstream has .ruby-version file"
+        version="$(git cat-file blob "$ref":.ruby-version)"
+    elif git rev-parse --verify --quiet --no-revs "$ref":.rbenv-version; then
+        debug "upstream has .rbenv-version file"
+        version="$(git cat-file blob "$ref":.rbenv-version)"
+    else
+        debug "upstream has no Ruby version file"
+        return 0
+    fi
+
+    if ! rbenv versions --bare | grep -q "$version"; then
+        update_ruby "$version"
+    fi
+
+    debug "Ruby version is all good"
+    return 0
+}
+
+check_bundler() {
+    # make sure we have bundler
+    hash bundle
+
+    debug "+ bundle check"
+    bundle check && rc=$? || rc=$?
+    case $rc in
+        0)
+            # bundle is up to date
+            return 0
+            ;;
+        1|11)
+            # bundle update is needed
+            update_bundler
+            return
+            ;;
+        10)
+            # could not locate Gemfile
+            return 10
+            ;;
+        *)
+            red "\`bundle check' returned unexpected status $rc"
+            return 1
+            ;;
+    esac
+}
+
+# Ask the user whether it is OK to update bundler. Return 0 for yes, 1 for no.
+# If we don't understand the response or if stdin is not a terminal, return
+# according to $GAU_BUNDLE_DEFAULT_YES.
+ask_bundle_install() {
+    if [ -t 0 ]; then
+        read -p "Bundle install is needed. Can I run bundler? [Y/n] " ans
+        if [[ $ans == [nN]* ]]; then
+            return 1
+        elif [[ $ans == [yY]* ]]; then
+            return 0
+        else
+            debug "Could not parse user response: '$ans'"
+        fi
+    else
+        debug "Stdin is not a TTY"
+    fi
+
+    if [ -n "$GAU_BUNDLE_DEFAULT_YES" ]; then
+        debug "Returning default yes"
+        return 0
+    else
+        debug "Returning default no"
+        return 1
+    fi
+}
+
+update_bundler() {
+    if ask_bundle_install; then
+        run bundle install
+    else
+        yellow "Not running bundle install"
+    fi
+}
+
+# If a .sign-commits file exists in the current directory, ensure that local
+# git config commit.gpgsign is enabled. This is supported on git 2.0+ but
+# harmless on earlier versions.
+check_auto_sign() {
+    if [ ! -e .sign-commits ]; then
+        debug "check_auto_sign: no signatures needed"
+        return
+    fi
+
+    if [ "$(git config --bool --get commit.gpgsign)" = "true" ]; then
+        debug "check_auto_sign: commit.gpgsign already enabled"
+    else
+        debug "check_auto_sign: enabling commit.gpgsign"
+        git config --local commit.gpgsign true
+    fi
+}
+
+auto_update() {
+    trap "yellow '$basename failed'" EXIT
+
+    # make sure we're in a git repo
+    toplevel="$(git rev-parse --show-toplevel)"
+    cd "$toplevel"
+
+    # make sure auto signing is enabled as needed
+    check_auto_sign
+
+    branch="$(git symbolic-ref HEAD 2>/dev/null)" || {
+        # most likely in a detached HEAD
+        info "$PWD is on $(git rev-parse --short HEAD)"
+        info "skipping update -- not on a branch"
+        trap - EXIT
+        return 1
+    }
+
+    if [ "$branch" != "refs/heads/master" ]; then
+        info "$PWD is on $branch"
+        info "skipping update -- not on master"
+        trap - EXIT
+        return 2
+    fi
+
+    # The "git status" here clears some state in the local repo that can
+    # erroneously cause the "git diff-index" checks following to fail.  This
+    # almost certainly is a git bug or wart, and could be fixed In A Better
+    # Way. Yes, this means "git status" is sometimes a repo-mutating operation.
+    # (!!) https://stripe.slack.com/archives/it/p1427872605000937
+    git status &>/dev/null
+
+    if ! git diff-index --quiet --cached HEAD --ignore-submodules -- ||
+       ! git diff-files --quiet --ignore-submodules ; then
+        info "$PWD is not clean"
+        info "skipping update -- dirty repository"
+        git status --short >&2
+        trap - EXIT
+        return 3
+    fi
+
+    git fetch
+
+    # I'm not super clear on the difference between git-rev-list and git-log,
+    # but it seems I'm not the only one:
+    # http://lists-archives.com/git/655677-git-log-vs-git-rev-list.html
+    ahead="$(git rev-list "$GAU_UPSTREAM..HEAD")"
+    if [ -n "$ahead" ]; then
+        info "$PWD is ahead of $GAU_UPSTREAM:"
+        git_log_revs "$GAU_UPSTREAM..HEAD"
+        info "skipping update -- unpushed commits"
+        trap - EXIT
+        return 1
+    fi
+
+    behind="$(git rev-list "HEAD..$GAU_UPSTREAM")"
+    if [ -z "$behind" ]; then
+        # up-to-date
+        debug "$PWD already up to date"
+        trap - EXIT
+        return
+    fi
+
+    check_commit_signature "$GAU_UPSTREAM"
+
+    check_ruby "$GAU_UPSTREAM"
+
+    current="$(git rev-parse --short HEAD)"
+    master="$(git rev-parse --short "$GAU_UPSTREAM")"
+    info "Updating $current..$master ($GAU_UPSTREAM)"
+
+    git reset --hard "$GAU_UPSTREAM"
+
+    debug "git update is done"
+
+    if [ -n "$GAU_CHECK_BUNDLER" ] && [ ! -e .gau-no-bundler ]; then
+        check_bundler && rc=$? || rc=$?
+        case $rc in
+            0)
+                # Success is OK
+                debug "check_bundler succeeded"
+                ;;
+            10)
+                # Gemfile not found is OK
+                debug "check_bundler found no Gemfile"
+                ;;
+            *)
+                error "check for bundle updates failed"
+                return 4
+                ;;
+        esac
+    else
+        debug "Not checking bundler"
+    fi
+
+    info "$PWD is now up-to-date"
+
+    debug 'update all done!'
+    trap - EXIT
+    return 100
+}
+
+alias_usage() {
+    cat >&2 <<'EOM'
+Add this function to your .bashrc/.profile and possibly add an alias to make it
+easier to use:
+
+git_commit_s() {
+    local root
+    root="$(git rev-parse --show-toplevel)" || return $?
+    if [ -e "$root/.sign-commits" ]; then
+        git commit -S "$@"
+    else
+        git commit "$@"
+    fi
+}
+
+alias gc=git_commit_s
+
+Unfortunately you can't alias existing commands with native git aliases. You
+could create an alias or wrapper for git itself, but that's more work than I
+wanted to put in atm...
+EOM
+}
+
+usage() {
+    cat >&2 <<EOM
+usage: $basename [options]
+
+Automatically update a git repository, first checking to make sure that the
+latest commit has a valid GPG signature.
+
+Options:
+    -h, --help           Show this help message
+    --alias              Print a git alias for automatically signing commits
+    --self-update        Update $basename itself
+    -d, --directory DIR  Update the repository containing DIR
+    -r, --remote REMOTE  Upstream git remote (default: origin)
+    -b, --branch BRANCH  Upstream git branch (default: master)
+
+EOM
+}
+
+# make sure we're not recursing
+if [ -n "$GIT_AUTO_UPDATE" ]; then
+    warn "refusing to recurse"
+    exit
+fi
+
+set -u
+
+GAU_DEBUG="${GAU_DEBUG-}"
+GAU_KEYSERVER="${GAU_KEYSERVER:-pgp.mit.edu}"
+
+# by default, check for bundle updates
+GAU_CHECK_BUNDLER="${GAU_CHECK_BUNDLER-1}"
+# by default, assume it is OK to bundle if we can't get user input
+GAU_BUNDLE_DEFAULT_YES="${GAU_BUNDLE_DEFAULT_YES-1}"
+# by default, assume it is OK to install a new Ruby if we can't get user input
+GAU_RUBY_DEFAULT_YES="${GAU_RUBY_DEFAULT_YES-1}"
+
+GAU_DIR='./'
+
+GAU_UP_REMOTE_ARG=""
+GAU_UP_BRANCH_ARG=""
+
+# our own custom option parser (I'm so sorry)
+while [ $# -gt 0 ] && [[ $1 == -* ]]; do
+    case "$1" in
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        --alias)
+            alias_usage
+            exit 0
+            ;;
+        -d|--directory)
+            GAU_DIR="$2"
+            shift
+            ;;
+        --self-update)
+            GAU_DIR="$(dirname "$0")"
+            ;;
+        -v|--verbose)
+            export GAU_DEBUG=1
+            ;;
+        -r|--remote)
+            GAU_UP_REMOTE_ARG="$2"
+            shift
+            ;;
+        -b|--branch)
+            GAU_UP_BRANCH_ARG="$2"
+            shift
+            ;;
+        *)
+            usage
+            yellow "error: unrecognized option $1"
+            exit 1
+            ;;
+    esac
+
+    shift
+done
+
+debug "gau PID: $$"
+
+debug "repository location: $GAU_DIR"
+cd "$GAU_DIR"
+
+GAU_UP_REMOTE_CONFIG="$(git config --get git-auto-update.remote || true)"
+if [ -n "$GAU_UP_REMOTE_ARG" ]; then
+    GAU_UP_REMOTE="$GAU_UP_REMOTE_ARG"
+elif [ -n "$GAU_UP_REMOTE_CONFIG" ]; then
+    GAU_UP_REMOTE="$GAU_UP_REMOTE_CONFIG"
+else
+    GAU_UP_REMOTE="origin"
+fi
+GAU_UP_BRANCH_CONFIG="$(git config --get git-auto-update.branch || true)"
+if [ -n "$GAU_UP_BRANCH_ARG" ]; then
+    GAU_UP_BRANCH="$GAU_UP_BRANCH_ARG"
+elif [ -n "$GAU_UP_BRANCH_CONFIG" ]; then
+    GAU_UP_BRANCH="$GAU_UP_BRANCH_CONFIG"
+else
+    GAU_UP_BRANCH="master"
+fi
+GAU_UPSTREAM="$GAU_UP_REMOTE/$GAU_UP_BRANCH"
+debug "upstream: $GAU_UPSTREAM"
+
+# make sure we can't recurse
+export GIT_AUTO_UPDATE=1
+
+auto_update
