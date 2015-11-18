@@ -1,0 +1,40 @@
+#!/usr/bin/env python
+
+import sys
+import SocketServer
+
+class EchoServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
+    pass
+
+class EchoRequestHandler(SocketServer.StreamRequestHandler):
+    """
+    Handle one connection from a client.
+    """
+    def handle(self):
+        print "connection from %s" % self.client_address[0]
+        while True:
+            line = self.rfile.readline()
+            if not line: break
+            print "%s wrote: %r" % (self.client_address[0], line.rstrip())
+            self.wfile.write(line)
+        print "%s disconnected" % self.client_address[0]
+
+def serve(host, port):
+    server = EchoServer((host, port), EchoRequestHandler)
+
+    # Activate the server; this will keep running until you
+    # interrupt the program with Ctrl-C
+    print "server listening on %s:%s" % server.server_address
+    server.serve_forever()
+
+if __name__ == '__main__':
+    host, port = 'localhost', 5000
+    if len(sys.argv) > 1:
+        host = sys.argv[1]
+    if len(sys.argv) > 2:
+        port = int(sys.argv[2])
+
+    try:
+        serve(host, port)
+    except KeyboardInterrupt:
+        print ''
