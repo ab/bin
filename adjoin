@@ -3,15 +3,6 @@
 
 require 'optparse'
 
-def usage
-  STDERR.puts <<-EOM
-usage: #{File.basename($0)} [OPTIONS] SEPARATOR [FILE...]
-
-Join each line in each FILE by SEPARATOR. If no FILE is not given, read from
-standard input.
-  EOM
-end
-
 # List of single character escape sequences
 ESCAPES = {
   "\\\\" => "\\",
