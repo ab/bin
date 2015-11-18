@@ -1,10 +1,20 @@
 #!/usr/bin/env python
 
+"""
+usage: echoserver [HOST [PORT]]
+
+TODO: properly support IPv4 hostnames
+"""
+
 import sys
+import socket
 import SocketServer
 
 class EchoServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
     pass
+
+class EchoServerV6(EchoServer):
+    address_family = socket.AF_INET6
 
 class EchoRequestHandler(SocketServer.StreamRequestHandler):
     """
@@ -20,15 +30,29 @@ class EchoRequestHandler(SocketServer.StreamRequestHandler):
         print "%s disconnected" % self.client_address[0]
 
 def serve(host, port):
-    server = EchoServer((host, port), EchoRequestHandler)
+    # TODO: we should choose the IPv4 server class if we're given an IPv4
+    # hostname/address
+    server = EchoServerV6((host, port), EchoRequestHandler)
 
-    # Activate the server; this will keep running until you
-    # interrupt the program with Ctrl-C
-    print "server listening on %s:%s" % server.server_address
-    server.serve_forever()
+    if len(server.server_address) == 2:
+        print "server listening on %s:%s" % server.server_address
+    else:
+        print "server listening on [%s]:%s" % server.server_address[0:2]
+        if server.socket.getsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY):
+            print '(IPv6 only)'
+        else:
+            print '(dual stack IPv6 and IPv4)'
+
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        pass
+
+    print "shutting down; waiting for connenctions to close..."
+    server.shutdown()
 
 if __name__ == '__main__':
-    host, port = 'localhost', 5000
+    host, port = '', 5000
     if len(sys.argv) > 1:
         host = sys.argv[1]
     if len(sys.argv) > 2:
