@@ -1,0 +1,68 @@
+#!/usr/bin/env ruby
+
+require 'optparse'
+require 'time'
+
+DEFAULT_LIMIT = 1 << 32
+DEFAULT_SLEEP = 1
+
+def nums(limit, options={})
+  sleep_time = options.fetch(:sleep, DEFAULT_SLEEP)
+
+  err_stream = STDERR
+  out_stream = STDOUT
+
+  limit.times do |i|
+    err_stream.puts("#{i} #{Time.now.strftime('@ %F %T %z')}")
+    err_stream.flush
+
+    out_stream.puts i
+    out_stream.flush
+
+    sleep sleep_time
+  end
+end
+
+def main
+  options={}
+  optparse = OptionParser.new do |opts|
+    opts.banner = <<-EOM
+usage: #{File.basename($0)} [OPTIONS] [LIMIT]
+
+Print integers up to LIMIT at regular intervals.
+
+By default, sleep for #{DEFAULT_SLEEP} seconds between loop iterations, and
+print integers up to 2**#{Math.log2(DEFAULT_LIMIT)}.
+
+Options:
+    EOM
+
+    opts.on('-h', '--help', 'Display this message') do
+      puts opts
+      exit
+    end
+
+    opts.on('-s', '--sleep SEC', 'Sleep for SEC seconds between loops') do |v|
+      options[:sleep] = Float(v)
+    end
+
+    opts.on('-q', '--quiet', 'Be less verbose with output') do
+      options[:quiet] = true
+    end
+  end
+
+  optparse.parse!
+
+  limit = ARGV.fetch(0, DEFAULT_LIMIT)
+
+  begin
+    nums(limit, options)
+  rescue Interrupt
+  end
+
+  0
+end
+
+if $0 == __FILE__
+  exit main
+end
