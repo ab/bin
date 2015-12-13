@@ -31,6 +31,7 @@ EOM
 }
 
 read_config() {
+    cd "$(run git rev-parse --show-toplevel)"
     BUNDLE_DIRECTORY="$(run git config cryptbundle.directory)"
     GPG_RECIPIENT="$(run git config cryptbundle.gpg-recipient)"
 }
