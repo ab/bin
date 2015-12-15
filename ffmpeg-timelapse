@@ -1,0 +1,59 @@
+#!/bin/bash
+
+set -eu
+
+run() {
+    echo >&2 "+ $*"
+    "$@"
+}
+
+usage() {
+    cat >&2 <<EOM
+usage: $(basename "$0") INPUT_GLOB OUTPUT.MP4
+
+NB: be sure to quote the INPUT_GLOB
+
+Example:
+
+    $(basename "$0") 'photos/*.jpg' timelapse.mp4
+
+EOM
+}
+
+if [ $# -ne 2 ]; then
+    usage
+    exit 1
+fi
+
+input_glob="$1"
+output="$2"
+
+OUTPUT_RESOLUTION="${OUTPUT_RESOLUTION-}"
+IN_FRAME_RATE="${IN_FRAME_RATE-15}"
+WATERMARK="${WATERMARK-}"
+QUIET="${QUIET-}"
+
+opts=()
+
+if [ -n "$OUTPUT_RESOLUTION" ]; then
+    opts+=(-s:v "$OUTPUT_RESOLUTION")
+fi
+
+if [ -n "$WATERMARK" ]; then
+    FONTFILE="${FONTFILE-/usr/share/fonts/truetype/roboto/Roboto-Regular.ttf}"
+    if [ -n "$OUTPUT_RESOLUTION" ]; then
+        # HACK: assume input appropriate for 2592x1944
+        opts+=(-vf "drawtext=fontfile=$FONTFILE: text='$WATERMARK': fontcolor=white@0.8: fontsize=96: x=(w-text_w-20): y=20: borderw=2")
+    else
+        # HACK: assume 640x480
+        opts+=(-vf "drawtext=fontfile=$FONTFILE: text='$WATERMARK': fontcolor=white@0.8: fontsize=24: x=(w-text_w-8): y=8: borderw=1")
+    fi
+fi
+
+if [ -n "$QUIET" ]; then
+    opts+=(-nostats)
+fi
+
+run ffmpeg -f image2 -framerate "$IN_FRAME_RATE" -pattern_type glob \
+    -i "$input_glob" -r 30 "${opts[@]}" -vcodec libx264 "$output"
+
