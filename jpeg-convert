@@ -1,0 +1,114 @@
+#!/bin/bash
+set -eu
+
+usage() {
+    cat >&2 <<EOM
+usage: $(basename "$0") [options] FILE.JPG [OUTPUT]
+
+If neither --out-dir directory nor OUTPUT file is given, ensure that input ends
+with .JPG, and write output to [basename].jpg. This only works on case-
+sensitive file systems.
+
+See also: jhead(1), convert(1), ImageMagick(1)
+
+Options:
+
+    -h, --help          Display this help text
+    -q, --quality NUM   Use JPEG quality level NUM
+    -r, --resize RES    Resize image to WxH resolution
+    -f, --force         Overwrite existing output files
+    -o, --out-dir DIR   Write output files to DIR
+
+Examples:
+
+    # Convert input.JPG quality and resolution, save as output.jpg
+    jpeg-convert -q 90 -r 640x480 input.JPG
+
+    # Convert a whole directory of files in parallel
+    parallel jpeg-convert -q 90 -- *.JPG
+
+    # Write files to directory \`output/'
+    parallel jpeg-convert -q 90 -o output/ -- input/*.jpg
+
+EOM
+}
+
+run() {
+    echo >&2 "+ $*"
+    "$@"
+}
+
+opts=()
+force=
+out_dir=
+
+while [ $# -gt 0 ] && [[ $1 == -* ]]; do
+    case "$1" in
+        -h|--help)
+            usage
+            exit
+            ;;
+        -q|--quality)
+            opts+=(-quality "$2")
+            shift
+            ;;
+        -r|--resize)
+            opts+=(-resize "$2")
+            shift
+            ;;
+        -f|--force)
+            force=1
+            ;;
+        -o|--out-directory)
+            out_dir="$2"
+            shift
+            ;;
+        *)
+            usage
+            echo >&2 "Unknown option '$1'"
+            exit 1
+            ;;
+    esac
+
+    shift
+done
+
+case $# in
+    1)
+        input="$1"
+
+        if [ -n "$out_dir" ]; then
+            # use out_dir as output directory
+            output="$out_dir/$(basename "$input")"
+        else
+            # infer output filename
+            output="$(dirname "$input")/$(basename "$input" .JPG).jpg"
+            if [[ $input != *.JPG ]]; then
+                usage
+                echo >&2 "error: input file must end with .JPG"
+                exit 2
+            fi
+        fi
+
+        ;;
+    2)
+        if [ -n "$out_dir" ]; then
+            usage
+            echo >&2 "error: cannot pass OUTPUT and --out-dir"
+            exit 1
+        fi
+        input="$1"
+        output="$2"
+        ;;
+    *)
+        usage
+        exit 1
+        ;;
+esac
+
+if [ -z "$force" -a -e "$output" ]; then
+    echo >&2 "error: output file already exists: '$output'"
+    exit 3
+fi
+
+run convert "${opts[@]}" "$input" "$output"
