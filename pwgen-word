@@ -20,6 +20,10 @@ Punctuation according to gnome-terminal:
     word separators: !"$'()*;<>[\\]^\`{|}
     non separators:  #%&+,-./:=?@_~
 
+Caveat: The word separators have recently changed quite a bit.
+        https://askubuntu.com/a/725109/8807
+        https://bugs.launchpad.net/ubuntu/+source/gnome-terminal/+bug/1401207
+
 There are 14 non-separators, so with default options there are 76 possible
 symbols. Generated passwords will have somewhat less than 6.248 bits of entropy
 per character because each one of symbols, uppercase, lowercase, and numbers
