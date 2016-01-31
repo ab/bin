@@ -1,7 +1,16 @@
 #!/usr/bin/env python
 # coding=utf-8
 
+import os
+import subprocess
 import sys
+
+USE_CLIPBOARD = False
+if 'CLIPBOARD' in os.environ:
+    USE_CLIPBOARD = os.environ['CLIPBOARD']
+else:
+    if os.path.exists('/usr/bin/xclip'):
+        USE_CLIPBOARD = True
 
 ALIASES = {
     'fliptable': 'flip',
@@ -33,18 +42,34 @@ ALL_EMOJI = {
 
     'facepalm': '(>_<)',
 }
+
+def clipboard_copy(text):
+    # TODO: add support for other OSes
+    p = subprocess.Popen(['xclip', '-silent', '-selection', 'clipboard'],
+                         stdin=subprocess.PIPE)
+    p.communicate(text)
+
 def emoji_for(word):
     word = ALIASES.get(word, word)
     return ALL_EMOJI[word]
 
-if len(sys.argv) > 1:
-    word = sys.argv[1]
-    try:
-        print emoji_for(word)
-    except KeyError:
-        print 'Unknown emoji: %r' % word
-        sys.exit(1)
-else:
-    for name, emoji in ALL_EMOJI.iteritems():
-        print name + ':', emoji
+def main(args):
+    if len(args) >= 1:
+        word = args[0]
+        try:
+            emoji = emoji_for(word)
+        except KeyError:
+            sys.stderr.write('Unknown emoji: %r\n' % word)
+            return 1
+        print emoji
+        if USE_CLIPBOARD:
+            clipboard_copy(emoji)
+            sys.stderr.write('(copied to clipboard)\n')
+    else:
+        for name, emoji in ALL_EMOJI.iteritems():
+            print name + ':', emoji
+    return 0
+
+if __name__ == '__main__':
+    sys.exit(main(sys.argv[1:]))
 
