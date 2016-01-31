@@ -1,24 +1,121 @@
 #!/usr/bin/env ruby
 
-# Generate a normalized X.509 SSL certificate bundle in PEM format.
-# Certificates will be sorted by subject and then by "Not Before" date.
-
 require 'openssl'
-
-class ParseError < Exception; end
-
-unless defined?(Enumerator)
-  # Ruby 1.8 compatibility
-  Enumerator = Enumerable::Enumerator
-end
+require 'optparse'
+require 'set'
 
 class CaBundle
+  class ParseError < StandardError; end
+  DefaultCAFile = '/etc/ssl/certs/ca-certificates.crt'
+  VERSION = '0.2.1'
+
+  def self.parse_args(args)
+    options = {cert_info: true}
+
+    optparse = OptionParser.new do |opts|
+      opts.banner = <<-EOM
+usage: #{opts.program_name} [options] [CA_FILE]
+
+Generate an annotated X.509 certificate bundle in PEM format. Certificates will
+be sorted by subject and then by issuance date.
+
+This is convenient for getting better visibility into the authorities that you
+trust, or for generating a pared down certificate authority list.
+
+Default CA_FILE: #{DefaultCAFile}
+
+For example:
+
+  Exclude certificate authorities from China.
+  $ #{opts.program_name} -x CN
+
+  Include only authorities from Ireland or with no country listed.
+  $ #{opts.program_name} -c '' -c IE
+
+  Include only authorities from France and Sweden, with less verbose output.
+  $ #{opts.program_name} -c FR,SE --no-cert-info
+
+  Render the certificates and no plain text information.
+  $ #{opts.program_name} --compact
+
+Options:
+      EOM
+
+      opts.version = VERSION
+
+      opts.on_tail('-h', '--help', 'Display this message') do
+        STDERR.puts opts
+        STDERR.puts
+        exit
+      end
+      opts.on_tail('-v', '--version', 'Print version') do
+        puts opts.ver
+        exit
+      end
+
+      opts.on('-c', '--only-country NAMES',
+              'Include only given countries in the bundle') do |names|
+        options[:countries_include] ||= Set.new
+        if names.empty?
+          options[:countries_include] << nil
+        else
+          options[:countries_include] += names.split(/[\s,]/).map(&:upcase)
+        end
+      end
+
+      opts.on('-x', '--exclude-country NAMES',
+              'Exclude given countries from the bundle') do |names|
+        options[:countries_exclude] ||= Set.new
+        if names.empty?
+          options[:countries_exclude] << nil
+        else
+          options[:countries_exclude] += names.split(/[\s,]/).map(&:upcase)
+        end
+      end
+
+      opts.on('--[no-]cert-info', 'Print extra certificate information') do |arg|
+        options[:cert_info] = arg
+      end
+
+      opts.on('--compact', "Don't print any subject or cert info") do |arg|
+        options[:compact] = true
+      end
+    end
+
+    optparse.parse!
+
+    if options[:countries_exclude] && options[:countries_include]
+      STDERR.puts optparse
+      optparse.warn("cannot specify both of --only and --exclude country")
+      exit 2
+    end
+
+    ca_file = args[0]
+
+    cab = CaBundle.new(ca_file, options)
+    puts cab.generate_bundle
+  end
+
   attr_reader :bundle_path, :certs, :certs_data
 
-  def initialize(bundle_path)
-    @bundle_path = bundle_path
+  # @param bundle_path [String] Path to input certificate bundle.
+  # @param opts [Hash]
+  #
+  # @option opts [Set<String>] :countries_include Country codes to include
+  # @option opts [Set<String>] :countries_exclude Country codes to exclude
+  # @option opts [Boolean] :cert_info
+  # @option opts [Boolean] :compact
+  #
+  def initialize(bundle_path=nil, opts={})
+    @bundle_path = bundle_path || DefaultCAFile
     @certs_data = parse_all_certificates(@bundle_path)
     @certs = @certs_data.map {|cert| OpenSSL::X509::Certificate.new(cert)}
+
+    @countries_include = opts[:countries_include]
+    @countries_exclude = opts[:countries_exclude]
+
+    @verbose_info = opts[:cert_info]
+    @compact = opts[:compact]
 
     @certs_data.zip(@certs).each do |orig, cert|
       if orig.gsub(/[\r\n]/, '') != cert.to_pem.gsub(/[\r\n]/, '')
@@ -29,14 +126,15 @@ class CaBundle
         STDERR.puts "As text:"
         STDERR.puts cert.to_text
 
-        raise "Parse mismatch: #{orig.inspect} != #{cert.to_pem.inspect}"
+        raise ParseError.new(
+          "Parse mismatch: #{orig.inspect} != #{cert.to_pem.inspect}")
       end
     end
   end
 
   def parse_all_certificates(bundle_file)
     unless block_given?
-      return Enumerator.new(self, :parse_all_certificates, bundle_file)
+      return enum_for(:parse_all_certificates, bundle_file)
     end
 
     File.open(bundle_file, 'r') do |f|
@@ -80,17 +178,64 @@ class CaBundle
     @certs.sort_by {|c| [c.subject.to_a, c.not_before]}
   end
 
-  def generate_bundle
-    lines = []
+  def permitted_certs
+    return enum_for(:permitted_certs).to_a unless block_given?
+
     sorted_certs.each do |cert|
+      if filter_country_ok?(cert)
+        yield cert
+      else
+        log_info("Cert rejected by country filter: " +
+                 cert.subject.to_s.inspect)
+      end
+
+    end
+  end
+
+  def generate_bundle
+    if @compact
+      return permitted_certs.map(&:to_pem).join
+    end
+
+    lines = []
+    permitted_certs.each do |cert|
       lines << '=' * 64
       lines << pretty_subject(cert.subject)
-      # lines << 'Not Before: ' + cert.not_before.strftime('%Y-%m-%d')
-      # lines << 'Not After:  ' + cert.not_after.strftime('%Y-%m-%d')
+      if @verbose_info
+        lines << '--'
+        lines << 'Not Before: ' + cert.not_before.strftime('%Y-%m-%d')
+        lines << 'Not After:  ' + cert.not_after.strftime('%Y-%m-%d')
+        lines << 'Signature: ' + cert.signature_algorithm
+        lines << 'Key: ' + cert_key_info_type(cert)
+      end
       lines << cert.to_pem
     end
 
     lines.join("\n")
+  end
+
+  def cert_key_info(cert)
+    pkey = cert.public_key
+    klass = pkey.class.name.split('::').last
+
+    case pkey
+    when OpenSSL::PKey::RSA
+      bits = pkey.n.num_bytes * 8
+      subtype = bits.to_s
+    when OpenSSL::PKey::EC
+      subtype = pkey.group.curve_name
+      bits = pkey.group.degree
+    else
+      raise NotImplementedError.new(
+        "Unexpected PKey for #{cert.subject}: #{pkey.class}: #{pkey.inspect}")
+    end
+
+    {type: klass, subtype: subtype, bits: bits}
+  end
+
+  def cert_key_info_type(cert)
+    info = cert_key_info(cert)
+    "#{info.fetch(:type)}:#{info.fetch(:subtype)}"
   end
 
   def pretty_subject(subject)
@@ -98,8 +243,63 @@ class CaBundle
       part.fetch(0) + ': ' + part.fetch(1)
     }.join("\n")
   end
+
+  # Determine whether the country of `cert` is allowed by the
+  # @countries_exclude and @countries_include filters.
+  #
+  # @param cert [OpenSSL::X509::Certificate]
+  #
+  # @return [Boolean]
+  #
+  def filter_country_ok?(cert)
+    return true if (!@countries_include && !@countries_exclude)
+
+    country = cert_country(cert)
+
+    if @countries_exclude && @countries_exclude.include?(country)
+      return false
+    end
+
+    if @countries_include && !@countries_include.include?(country)
+      return false
+    end
+
+    return true
+  end
+
+  def cert_country(cert)
+    parts = cert.subject.to_a
+
+    found = parts.find_all {|p| p.first == 'C'}
+    if found.empty?
+      # no country in subject
+      log_warn("No country in subject: #{cert.subject.to_s.inspect}")
+      return nil
+    end
+    if found.length != 1
+      # bad number
+      raise ParseError.new("Could not parse country of cert subject:" +
+                           cert.subject.to_s.inspect)
+    end
+    c_part = found.first
+
+    country = c_part.fetch(1).upcase
+
+    unless country =~ /\A[A-Z]{2}\z/
+      raise ParseError.new("Unexpected country code: #{country.inspect}")
+    end
+
+    country
+  end
+
+  def log_info(message)
+    STDERR.puts "*** " + message
+  end
+  def log_warn(message)
+    STDERR.puts '!!! ' + message
+  end
 end
 
-source_bundle = ARGV.fetch(0, '/etc/ssl/certs/ca-certificates.crt')
-
-puts CaBundle.new(source_bundle).generate_bundle
+if $0 == __FILE__
+  CaBundle.parse_args(ARGV)
+end
