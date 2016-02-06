@@ -80,6 +80,10 @@ Options:
       opts.on('--compact', "Don't print any subject or cert info") do |arg|
         options[:compact] = true
       end
+
+      opts.on('--secure', 'Exclude insecure ciphers and signatures') do |arg|
+        options[:secure] = true
+      end
     end
 
     optparse.parse!
@@ -105,6 +109,7 @@ Options:
   # @option opts [Set<String>] :countries_exclude Country codes to exclude
   # @option opts [Boolean] :cert_info
   # @option opts [Boolean] :compact
+  # @option opts [Boolean] :secure
   #
   def initialize(bundle_path=nil, opts={})
     @bundle_path = bundle_path || DefaultCAFile
@@ -116,6 +121,7 @@ Options:
 
     @verbose_info = opts[:cert_info]
     @compact = opts[:compact]
+    @secure = opts[:secure]
 
     @certs_data.zip(@certs).each do |orig, cert|
       if orig.gsub(/[\r\n]/, '') != cert.to_pem.gsub(/[\r\n]/, '')
@@ -183,7 +189,12 @@ Options:
 
     sorted_certs.each do |cert|
       if filter_country_ok?(cert)
-        yield cert
+        if @secure && secure?(cert)
+          yield cert
+        else
+          log_info("Cert rejected by algo strength filter: " +
+                   cert.subject.to_s.inspect)
+        end
       else
         log_info("Cert rejected by country filter: " +
                  cert.subject.to_s.inspect)
@@ -261,6 +272,35 @@ Options:
     end
 
     if @countries_include && !@countries_include.include?(country)
+      return false
+    end
+
+    return true
+  end
+
+  # Return true if a certificate uses appropriately strong cipher and signature
+  # algorithms.
+  #
+  # This will reject RSA keys < 2048 bits and MD2 or MD5 signatures.
+  def secure?(cert)
+    info = cert_key_info(cert)
+    case info.fetch(:type)
+    when 'RSA'
+      # reject RSA < 2048 bit
+      if info.fetch(:bits) < 2048
+        return false
+      end
+    when 'EC'
+      # reject ECDSA < 256 bit
+      if info.fetch(:bits) < 256
+        return false
+      end
+    else
+      raise NotImplementedError.new("Unexpected cert algorithm: #{info}")
+    end
+
+    # reject MD2 and MD5
+    if cert.signature_algorithm.start_with?('md')
       return false
     end
 
