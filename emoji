@@ -2,15 +2,9 @@
 # coding=utf-8
 
 import os
+import platform
 import subprocess
 import sys
-
-USE_CLIPBOARD = False
-if 'CLIPBOARD' in os.environ:
-    USE_CLIPBOARD = os.environ['CLIPBOARD']
-else:
-    if os.path.exists('/usr/bin/xclip'):
-        USE_CLIPBOARD = True
 
 ALIASES = {
     'fliptable': 'flip',
@@ -43,11 +37,37 @@ ALL_EMOJI = {
     'facepalm': '(>_<)',
 }
 
+def has_clipboard_capability():
+    host_os = platform.system()
+    if host_os == 'Darwin':
+        return True
+    elif host_os == 'Linux':
+        if os.path.exists('/usr/bin/xclip'):
+            return True
+        else:
+            return False
+    else:
+        sys.stderr.write('warning: unknown OS %r\n' % host_os)
+        return False
+
 def clipboard_copy(text):
-    # TODO: add support for other OSes
+    host_os = platform.system()
+    if host_os == 'Darwin':
+        return clipboard_copy_mac(text)
+    elif host_os == 'Linux':
+        return clipboard_copy_linux(text)
+    else:
+        sys.stderr.write('warning: unknown OS %r\n' % host_os)
+        return False
+
+def clipboard_copy_mac(text):
+    p = subprocess.Popen(['pbcopy'], stdin=subprocess.PIPE)
+    return p.communicate(text)
+
+def clipboard_copy_linux(text):
     p = subprocess.Popen(['xclip', '-silent', '-selection', 'clipboard'],
                          stdin=subprocess.PIPE)
-    p.communicate(text)
+    return p.communicate(text)
 
 def emoji_for(word):
     word = ALIASES.get(word, word)
@@ -69,6 +89,14 @@ def main(args):
         for name, emoji in ALL_EMOJI.iteritems():
             print name + ':', emoji
     return 0
+
+USE_CLIPBOARD = False
+if 'CLIPBOARD' in os.environ:
+    USE_CLIPBOARD = os.environ['CLIPBOARD']
+else:
+    if has_clipboard_capability():
+        USE_CLIPBOARD = True
+
 
 if __name__ == '__main__':
     sys.exit(main(sys.argv[1:]))
