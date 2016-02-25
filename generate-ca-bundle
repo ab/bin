@@ -189,7 +189,7 @@ Options:
 
     sorted_certs.each do |cert|
       if filter_country_ok?(cert)
-        if @secure && secure?(cert)
+        if !@secure || secure?(cert)
           yield cert
         else
           log_info("Cert rejected by algo strength filter: " +
