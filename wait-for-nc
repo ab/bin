@@ -1,0 +1,24 @@
+#!/bin/bash
+set -eu
+
+if [ $# -lt 1 ]; then
+    cat >&2 <<EOM
+$(basename "$0") HOST [PORT [SLEEP [TIMEOUT]]]
+
+Wait until netcat to HOST at PORT succeeds.
+
+PORT defaults to 22, on the theory that you're typically running this when
+waiting for a server starting up to become SSH-able.
+EOM
+    exit 1
+fi
+
+host="$1"
+port="${2-22}"
+sleep="${3-10}"
+timeout="${4-5}"
+
+set -x
+while ! nc -vz -w "$timeout" "$host" "$port"; do
+    sleep "$sleep"
+done
