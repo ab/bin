@@ -11,19 +11,27 @@ case $day in
 		dstamp=$date.${day:0:2};;
 esac
 
-case "$1" in
-	gedit)
-		cmd=gedit;;
-	pyroom)
-		cmd=pyroom;;
-	vim)
-		cmd=vim;;
-	lyx)
-		cmd=lyx
-		ext=lyx;;
-	*)
-		cmd=vim;;
-esac
+if [ $# -ge 1 ]; then
+    label="$1"
+    fname="$label.$dstamp.$ext"
+else
+    fname="$dstamp.$ext"
+fi
 
-$cmd $dstamp.$ext
+"${EDITOR-vim}" "$fname"
 
+#case "$1" in
+#	gedit)
+#		cmd=gedit;;
+#	pyroom)
+#		cmd=pyroom;;
+#	vim)
+#		cmd=vim;;
+#	lyx)
+#		cmd=lyx
+#		ext=lyx;;
+#	*)
+#		cmd=vim;;
+#esac
+#
+#$cmd $dstamp.$ext
