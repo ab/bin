@@ -4,6 +4,9 @@
 DISCLAIMER: you probably don't want to use this on important data
 """
 
+# TODO: add headers to each of the output formats for safety & sanity checking
+# TODO: add usage message
+
 import hashlib
 import sys
 import json
