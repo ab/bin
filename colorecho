@@ -55,11 +55,11 @@ esac
 shift
 
 if [ -t 1 ]; then
-    echo -ne "\e[$bold;${fg}m"
+    echo -ne "\033[$bold;${fg}m"
 fi
 
 echo "$@"
 
 if [ -t 1 ]; then
-    echo -ne "\e[m"
+    echo -ne "\033[m"
 fi
