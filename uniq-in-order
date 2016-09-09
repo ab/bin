@@ -10,6 +10,8 @@ options and functionality. It is ideal for replacing `sort | uniq` pipelines
 where the order of the original lines is important.
 """
 
+__version__ = '1.0'
+
 import argparse
 import sys
 
@@ -76,6 +78,9 @@ if __name__ == '__main__':
                    default=sys.stdin, help='default: stdin')
     p.add_argument('output', nargs='?', type=argparse.FileType('w'),
                    default=sys.stdout, help='default: stdout')
+
+    p.add_argument('-v', '--version', action='version',
+                   version='%(prog)s ' + __version__)
 
     args = p.parse_args()
 
