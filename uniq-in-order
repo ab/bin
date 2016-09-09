@@ -14,39 +14,51 @@ import argparse
 import sys
 
 from collections import deque
+from collections import OrderedDict
 
-def uniq(f_in, f_out, ignore_case=False, repeated=False):
-    seen = set()
-    for line in f_in:
-        compare = line.lower() if ignore_case else line
-        if compare in seen:
-            if repeated:
-                f_out.write(line)
-        else:
-            seen.add(compare)
-            if not repeated:
-                f_out.write(line)
+def stream_uniq(f_in, ignore_case=False, repeated_only=False, print_counts=False):
+    counts = OrderedDict()
 
-def uniq_with_count(f_in, f_out, ignore_case=False, repeated=False):
-    # Could use OrderedDict from Python 2.7 here, but since we don't ever need
-    # to delete or reorder, just use a list at the cost of some extra space.
-    order = deque()
-    counts = {}
-    for line in f_in:
+    while True:
+        # use .readline() rather than `for line in f_in:` due to buffering
+        line = f_in.readline()
+        if not line:
+            break
+        line = line.rstrip('\r\n')
         compare = line.lower() if ignore_case else line
-        if line in counts:
-            counts[compare] += 1
-        else:
-            counts[compare] = 1
-            order.append(line)
 
-    # now write out
-    for line in order:
-        compare = line.lower() if ignore_case else line
-        if repeated and counts[compare] == 1:
+        counts[compare] = counts.get(compare, 0) + 1
+
+        # if printing counts, wait until end to print
+        if print_counts:
             continue
-        c = '%7d ' % counts[line]
-        f_out.write(c + line)
+
+        if repeated_only:
+            # repeated: print only on 2nd occurrence
+            if counts[compare] == 2:
+                yield line
+        else:
+            # unique: print only on 1st occurrence
+            if counts[compare] == 1:
+                yield line
+
+    # if printing counts, print all at end
+    if print_counts:
+        for line, count in counts.iteritems():
+            if repeated_only and count == 1:
+                continue
+            yield (count, line)
+
+def print_uniq(f_in, f_out, ignore_case=False, repeated_only=False,
+               print_counts=False):
+    for item in stream_uniq(f_in=f_in, ignore_case=ignore_case,
+                            repeated_only=repeated_only,
+                            print_counts=print_counts):
+        if print_counts:
+            count, line = item
+            f_out.write(('%4d ' % count) + line + '\n')
+        else:
+            f_out.write(item + '\n')
 
 if __name__ == '__main__':
     formatter = argparse.RawDescriptionHelpFormatter
@@ -67,9 +79,6 @@ if __name__ == '__main__':
 
     args = p.parse_args()
 
-    if args.count:
-        uniq_with_count(args.input, args.output, args.ignore_case,
-                        args.repeated)
-    else:
-        uniq(args.input, args.output, args.ignore_case, args.repeated)
-
+    print_uniq(f_in=args.input, f_out=args.output,
+               ignore_case=args.ignore_case, repeated_only=args.repeated,
+               print_counts=args.count)
