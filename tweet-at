@@ -1,16 +1,24 @@
 #!/bin/bash
-set -eux
+set -eu
 
 if [ $# -ne 2 ]; then
-  echo >&2 "usage: $0 TIMESTAMP MESSAGE"
+  echo >&2 "usage: $0 UNIX_TIMESTAMP MESSAGE"
   exit 1
 fi
 
+if ! which t >/dev/null; then
+    echo >&2 "t: command not found"
+    echo >&2 'Perhaps a `gem install t` or `rbenv rehash` is needed?'
+    exit 2
+fi
+
 declare -i target
+
+set -x
 
 target="$1"
 message="$2"
 
 sleep $(($target - $(date +%s)))
 
-/home/andy/.gem/ruby/1.9.1/bin/t update "$message"
+t update "$message"
