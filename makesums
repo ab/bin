@@ -1,0 +1,47 @@
+#!/bin/sh
+
+# Make sha256 checksum files
+
+usage() {
+    cat >&2 <<EOM
+usage: $(dirname "$0") FILE...
+
+Create individual checksum files for each FILE at FILE.$ALGO
+EOM
+}
+
+run_sha256() {
+    if which sha256sum >/dev/null; then
+        run sha256sum "$@"
+    elif which shasum >/dev/null; then
+        run shasum -a 256 "$@"
+    else
+        echo >&2 "Could not find sha256sum or shasum"
+        return 2
+    fi
+}
+
+ALGO=sha256
+
+if [ $# -lt 1 ]; then
+    usage
+    exit 1
+fi
+
+for i in "$@"; do
+    sumfile="$i.$ALGO"
+    if [ -s "$sumfile" ]; then
+        cat "$sumfile"
+        continue
+    fi
+
+    case "$ALGO" in
+        sha256)
+            run_sha256 "$i" | tee "$sumfile"
+            ;;
+        *)
+            echo >&2 "Unexpected ALGO $ALGO"
+            exit 5
+            ;;
+    esac
+done
