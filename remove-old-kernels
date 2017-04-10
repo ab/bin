@@ -4,6 +4,7 @@ set -e
 set -o nounset
 
 list_installed() {
+    # shellcheck disable=SC2016
     dpkg-query -W -f '${Package}\t${Status}\n' | \
         sed -n 's/\tinstall ok installed$//p' | grep "$1"
 }
@@ -24,4 +25,5 @@ read -s -n 1 -p "Press any key to continue..."
 echo -e "\n"
 
 set -x
-sudo apt-get purge $pkgs
+# shellcheck disable=SC2086
+sudo apt purge $pkgs
