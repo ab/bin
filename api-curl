@@ -1,3 +1,0 @@
-#!/bin/sh
-echo + curl -u "$(cat $HOME/.stripe/personal/stripe_api_key_test):" "$@"
-exec curl -u "$(cat $HOME/.stripe/personal/stripe_api_key_test):" "$@"
