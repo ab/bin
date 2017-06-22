@@ -1,13 +1,80 @@
-#!/bin/sh
+#!/bin/bash
+# version 1.0
+set -eu
 
 run() {
     echo>&2 "+ $*"
-    $*
+    "$@"
 }
 
+usage() {
+    cat >&2 <<EOM
+usage: $(basename "$0") FILE...
+
+Check a checksum file and associated gnupg signatures.
+
+For each checksum FILE listed, verify the GnuPG signature from FILE.gpg, then
+determine what hash (md5, sha1, sha2) algorithm it uses, and check all of the
+checksums of the listed files.
+
+Hashes of missing files will be silently skipped (using --ignore-missing).
+
+This is especially useful for verifying the SHA256SUMS, SHA256SUMS.gpg files
+that accompany software downloads.
+EOM
+}
+
+if [ $# -eq 0 ]; then
+    usage
+    exit 1
+fi
+
+colorecho() {
+    color="$1"
+    shift
+
+    if [ ! -t 1 ]; then
+        echo "$*"
+        return
+    fi
+
+    case "$color" in
+        black|gray|grey)       fg=30 ;;
+        red)                   fg=31 ;;
+        green)                 fg=32 ;;
+        yellow)                fg=33 ;;
+        blue)                  fg=34 ;;
+        magenta|purple|violet) fg=35 ;;
+        cyan)                  fg=36 ;;
+        white)                 fg=37 ;;
+        *)
+            echo >&2 "colorecho: unknown color: $color"
+            return 1
+            ;;
+    esac
+
+    echo -ne "\033[1;${fg}m"
+    echo -n "$*"
+    echo -e "\033[m"
+}
+
+errx() {
+    code=$1
+    shift
+
+    colorecho red "$(basename "$0"): $*" >&2
+    exit "$code"
+}
+
+warn() {
+    colorecho yellow "$(basename "$0"): $*" >&2
+}
+
+delayerr=
+
 for file in "$@"; do
-    hashlen="$(head -1 "$file" | cut -f 1 -d' ' | wc -c)"
-    hashlen=$((hashlen - 1))   # ignore trailing newline
+    first_hash="$(head -1 "$file" | cut -f 1 -d' ')"
+    hashlen=${#first_hash}
 
     case $hashlen in
         32)  cmd=md5sum ;;
@@ -17,19 +84,25 @@ for file in "$@"; do
         98)  cmd=sha384sum ;;
         128) cmd=sha512sum ;;
         *)
-            echo "File $file has unexpected hash length: $hashlen"
-            exit 3
+            errx 3 "'$file' has unexpected hash length: $hashlen"
             ;;
     esac
 
     if [ -r "$file.gpg" ]; then
-        run gpg --verify $file.gpg $file || exit 5
+        run gpg --verify "$file.gpg" "$file"
+    else
+        warn "Warning: no signature found at $file.gpg"
+        delayerr=5
     fi
 
-    run $cmd -w -c $file
-    exit=$?
-    if [ $exit -ne 0 ]; then
-        echo>&2 "exit status $exit"
+
+    run "$cmd" -c --strict --ignore-missing "$file" && ret=$? || ret=$?
+
+    if [ "$ret" -ne 0 ]; then
+        errx "$ret" "$cmd exited with error status $ret"
     fi
 done
 
+if [ -n "$delayerr" ]; then
+    exit "$delayerr"
+fi
