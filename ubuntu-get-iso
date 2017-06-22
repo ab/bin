@@ -1,11 +1,14 @@
 #!/bin/bash
 set -eu
 
-MIRROR="${MIRROR-http://mirrors.us.kernel.org/ubuntu-releases}"
+MIRROR="${MIRROR-"https://mirror.math.princeton.edu/pub/ubuntu-iso"}"
+
+declare -a suites
+suites=("desktop-amd64" "server-amd64" "desktop-i386")
 
 usage() {
     cat >&2 <<EOM
-usage: $(basename $0) [options] VERSION
+usage: $(basename "$0") [options] VERSION
 
 Download Ubuntu ISOs from a release mirror.
 
@@ -13,6 +16,9 @@ Options:
 
     -h          Print this help message
     -m MIRROR   Use MIRROR as base URL rather than default.
+    -a          Download amd64 releases only
+    -d          Download desktop releases only
+    -s          Download server releases only
 
 Default mirror: $MIRROR
 
@@ -20,17 +26,12 @@ Default mirror: $MIRROR
 For example:
 
     # Download Ubuntu 14.04.4 LTS
-    $ $(basename $0) 14.04.4
+    $ $(basename "$0") 14.04.4
 
 EOM
 }
 
-i386_desktop=1
-i386_server=
-
-wget_opts=
-
-while getopts hm: OPT; do
+while getopts adhm:s OPT; do
     case $OPT in
         h)
             usage
@@ -38,6 +39,15 @@ while getopts hm: OPT; do
             ;;
         m)
             MIRROR="$OPTARG"
+            ;;
+        a)
+            suites=("desktop-amd64" "server-amd64")
+            ;;
+        d)
+            suites=("desktop-amd64" "desktop-i386")
+            ;;
+        s)
+            suites=("server-amd64")
             ;;
         \?)
             usage
@@ -57,7 +67,6 @@ version="$1"
 
 if [[ $version =~ ^([0-9]+\.[0-9]+)(\.([0-9]+))?$ ]]; then
     major="${BASH_REMATCH[1]}"
-    minor="${BASH_REMATCH[3]}"
 else
     echo "Invalid version: $version"
     exit 2
@@ -68,18 +77,14 @@ echo >&2 "Mirror: $MIRROR"
 
 declare -a files urls
 files=(
-    {MD5,SHA1,SHA256}SUMS{,.gpg}
-    "ubuntu-$version-desktop-amd64.iso"
-    "ubuntu-$version-server-amd64.iso"
+    {SHA1,SHA256}SUMS{,.gpg}
 )
-urls=()
 
-if [ -n "$i386_desktop" ]; then
-    files+=("ubuntu-$version-desktop-i386.iso")
-fi
-if [ -n "$i386_server" ]; then
-    files+=("ubuntu-$version-server-i386.iso")
-fi
+for suite in "${suites[@]}"; do
+    files+=("ubuntu-${version}-${suite}.iso")
+done
+
+urls=()
 
 echo >&2 "Files to download:"
 for file in "${files[@]}"; do
@@ -89,4 +94,4 @@ done
 
 set -x
 
-exec wget -c $wget_opts "${urls[@]}"
+exec wget -c "${urls[@]}"
