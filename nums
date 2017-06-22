@@ -53,16 +53,16 @@ Options:
 
   optparse.parse!
 
-  limit = ARGV.fetch(0, DEFAULT_LIMIT)
+  limit = Integer(ARGV.fetch(0, DEFAULT_LIMIT))
 
   begin
     nums(limit, options)
   rescue Interrupt
+  rescue Errno::EPIPE
+    exit 141
   end
-
-  0
 end
 
 if $0 == __FILE__
-  exit main
+  main
 end
