@@ -42,10 +42,11 @@ if [ $# -lt 1 ]; then
 fi
 
 logfile="$(mktemp)"
+# shellcheck disable=SC2064
 trap "rm '$logfile'" EXIT
 
 start="$(date "+%s.%N")"
-seq 1 "$NUM" | while read num; do
+seq 1 "$NUM" | while read; do
     # TODO: verbose option
     #echo>&2 -n '.'
     /usr/bin/time -o "$logfile" -a --format '%e' "$@"

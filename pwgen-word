@@ -56,7 +56,7 @@ fi
 target="$(printf "%d" "$1")"
 shift
 
-pwlen="$(($target * 5 / 4))"
+pwlen="$((target * 5 / 4))"
 
 pwopts="$*"
 if [ -z "$pwopts" ]; then

@@ -8,6 +8,7 @@ fi
 
 if ! which t >/dev/null; then
     echo >&2 "t: command not found"
+    # shellcheck disable=2016
     echo >&2 'Perhaps a `gem install t` or `rbenv rehash` is needed?'
     exit 2
 fi
@@ -19,6 +20,6 @@ set -x
 target="$1"
 message="$2"
 
-sleep $(($target - $(date +%s)))
+sleep $((target - $(date +%s)))
 
 t update "$message"

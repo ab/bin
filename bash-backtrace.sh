@@ -21,7 +21,7 @@ set -E
 
 bash_backtrace() {
     local ret=$?
-    local i=0
+    local frame
     local FRAMES=${#BASH_SOURCE[@]}
 
 

@@ -37,12 +37,13 @@ do_start() {
         exit 1
     fi
 
-    devs="$(for i in $(seq 0 $(($ndisks - 1))); do echo /dev/ram$i; done)"
+    devs="$(for i in $(seq 0 $((ndisks - 1))); do echo "/dev/ram$i"; done)"
 
     for dev in $devs; do
         pvcreate "$dev" >/dev/null
     done
 
+    # shellcheck disable=SC2086
     vgcreate "$vgname" $devs >/dev/null
 
     lvcreate -n "$lvname" -l 100%FREE "$vgname" >/dev/null

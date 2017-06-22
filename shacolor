@@ -57,8 +57,8 @@ sha_prog() {
 sha_prog "$NUM" "$@" | while read hash filename; do
   echo "$hash $filename"
   i=0
-  for (( row=0; row < $rows; row++ )); do
-    for (( col=0; col < $cols; col++ )); do
+  for (( row=0; row < rows; row++ )); do
+    for (( col=0; col < cols; col++ )); do
       color_for_nibble "${hash:$i:2}"
       i=$((i + 2))
     done

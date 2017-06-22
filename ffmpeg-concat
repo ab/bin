@@ -17,6 +17,7 @@ shift
 
 # use temp file instead of <() due to cwd nonsense from ffmpeg
 tmpf="$(mktemp .ffmpeg-concat.XXXXXX)"
+# shellcheck disable=SC2064
 trap "rm -rf '$tmpf'" EXIT
 
 printf "file '%s'\n" "$@" > "$tmpf"

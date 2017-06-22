@@ -8,7 +8,7 @@ log() {
     echo >&2 "$@"
 }
 logrun() {
-    log "+ $@"
+    log "+ $*"
     "$@"
 }
 basename="$(basename "$0")"

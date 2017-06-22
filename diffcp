@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 usage() {
     cat >&2 <<EOM
@@ -9,20 +9,20 @@ Show a diff of source and dest, and prompt before overwriting.
 options:
     -h   show this help message
     -m   use mv rather than cp
-    -v   be more verbose
+    -q   be more quiet, less verbose
     -b   make a backup of the destination file
 EOM
 }
 
 operation=cp
-verbose=
+verbose=1
 backup=
 
 while getopts bhmv OPT; do
     case $OPT in
         b)  backup=1 ;;
         m)  operation=mv ;;
-        v)  verbose=1 ;;
+        q)  verbose='' ;;
         h)
             usage
             exit 0
@@ -68,23 +68,23 @@ if [ $ret -eq 0 ]; then
 elif [ $ret -eq 1 ]; then
     # changes
 
-    opts=
+    opts=()
 
     if [ -n "$verbose" ]; then
-        opts="$opts -v"
+        opts+=("-v")
     fi
 
     if [ -n "$backup" ]; then
-        opts="$opts -b"
+        opts+=("-b")
     fi
 
     if [ "$operation" = "cp" ]; then
-        opts="$opts -a"
+        opts+=("-a")
     fi
 
     echo
 
-    $operation -i $opts "$src" "$dst"
+    "$operation" -i "${opts[@]}" "$src" "$dst"
 
 else
     # error

@@ -7,7 +7,7 @@ if [ $# -lt 1 ]; then
 fi
 
 sleep=0
-echo "testing \"$@\""
+echo "testing \"$*\""
 echo "sleep: $sleep"
 
 while true; do
