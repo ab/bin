@@ -1,0 +1,44 @@
+#!/usr/bin/env python
+# Print a bouncing O. Pretty much the most pointless script ever.
+
+import sys
+import time
+from subprocess import check_output
+
+
+width = int(check_output(['tput', 'cols']))
+
+def display_line(index, width, stream=None):
+    if index >= width:
+        raise IndexError('index %r should be < width %r' % (index, width))
+    if index < 0:
+        raise IndexError('index %r is < 0' % index)
+
+    if stream is None:
+        stream = sys.stdout
+
+    stream.write('\r')
+    for i in range(width):
+        if i == index:
+            stream.write('O')
+        else:
+            stream.write(' ')
+    stream.flush()
+
+def sleep():
+    time.sleep(0.05)
+
+def main():
+    while True:
+        for x in range(width):
+            display_line(index=x, width=width)
+            sleep()
+        for x in range(width-1, 0, -1):
+            display_line(index=x, width=width)
+            sleep()
+
+if __name__ == '__main__':
+    try:
+        main()
+    except KeyboardInterrupt:
+        sys.stderr.write('\n')
