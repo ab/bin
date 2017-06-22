@@ -1,35 +1,67 @@
 #!/usr/bin/env python
 
+"""
+Print a non-distracting terminal clock useful for public speaking.
+
+This program outputs elapsed minutes and seconds so you can tell how long
+you've been talking. It's especially good at large terminal font sizes.
+"""
+
+VERSION = '0.2.0'
+
+import optparse
 import os
 import sys
 import time
 from datetime import datetime
 
-def format_delta(delta):
-    s = ''
-    if delta.days:
-        s += str(delta.days) + ' '
-        s += 'days ' if delta.days > 1 else 'day '
+class Timer(object):
+    def __init__(self, stream=sys.stdout):
+        self.stream = stream
 
-    s += "%d:%02d" % ((delta.seconds // 60) % 60,
-                           delta.seconds % 60)
+    def run(self, interval=1):
+        os.system('clear')
+        self.stream.write('\n')
+        os.system('tput civis')
 
-    return s
+        try:
+            self._loop(interval=interval)
+        finally:
+            os.system('tput cnorm')
 
-def timer(stream=sys.stdout):
-    start = datetime.now()
-    while True:
-        stream.write('\r')
-        stream.write(format_delta(datetime.now() - start))
-        stream.flush()
-        time.sleep(10)
+    def _loop(self, interval=1):
+        start = datetime.now()
+        while True:
+            self.stream.write('\r    ')
+            self.stream.write(self.format_delta(datetime.now() - start))
+            self.stream.flush()
+            time.sleep(interval)
 
-def clear():
-    os.system('clear')
+    def format_delta(self, delta):
+        s = ''
+        if delta.days:
+            s += str(delta.days) + ' '
+            s += 'days ' if delta.days > 1 else 'day '
 
-if __name__ == '__main__':
-    clear()
+        s += "%d:%02d" % ((delta.seconds // 60) % 60,
+                          delta.seconds % 60)
+
+        return s
+
+
+def main():
+    p = optparse.OptionParser(usage = '%prog [options]\n' + __doc__.rstrip(),
+                              version = '%prog ' + VERSION)
+    p.add_option('-i', '--interval', dest='interval', default=5,
+                 help='interval between updates')
+    opts, args = p.parse_args()
+
+    t = Timer()
+
     try:
-        timer()
+        t.run(interval=int(opts.interval))
     except KeyboardInterrupt:
         print ''
+
+if __name__ == '__main__':
+    main()
