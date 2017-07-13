@@ -1,0 +1,29 @@
+#!/bin/bash
+
+set -eu
+
+pids=("$$")
+pid="$$"
+while true; do
+    pid="$(ps -o ppid= -p "$pid" | tr -d ' ')"
+    pids=("$pid" "${pids[@]}")
+
+    if [ "$pid" -eq 1 ]; then
+        break
+    fi
+done
+
+ps_cols=(pid user command)
+ps_opts=()
+
+for opt in "${ps_cols[@]}"; do
+    ps_opts+=("-o" "$opt=")
+done
+
+indent=0
+for pid in "${pids[@]}"; do
+    for ((i=0; i<indent; i++)); do echo -n ' '; done
+    echo -n " \- "
+    ps -p "$pid" "${ps_opts[@]}"
+    indent=$((indent + 2))
+done
