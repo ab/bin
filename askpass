@@ -12,6 +12,8 @@ import optparse
 import sys
 
 p = optparse.OptionParser(usage='usage: %prog [PROMPT]' + __doc__.rstrip('\n'))
+p.add_option('-n', '--newline', help='print trailing newline',
+             action='store_true')
 opts, args = p.parse_args()
 
 if args:
@@ -27,6 +29,8 @@ except EOFError:
     sys.exit(1)
 except KeyboardInterrupt:
     sys.exit(2)
-else:
-    out_stream.write(pw)
+
+out_stream.write(pw)
+if opts.newline:
+    out_stream.write('\n')
 
