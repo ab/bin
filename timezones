@@ -26,7 +26,7 @@ Examples:
 EOM
 }
 
-if [ $# -ge 1 ] && [ "$1" = "-h" -o "$1" = "--help" ]; then
+if [ $# -ge 1 ] && [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
     usage
     exit
 fi
@@ -42,10 +42,16 @@ if [ -z "$ZONES" ]; then
     fi
 fi
 
+if which gdate >/dev/null; then
+    date=gdate
+else
+    date=date
+fi
+
 for tz in $ZONES; do
     if [ ! -e "/usr/share/zoneinfo/$tz" ]; then
         echo >&2 "Warning: not sure whether $tz is a valid timezone"
     fi
-    output="$(TZ="$tz" date "$@")"
+    output="$(TZ="$tz" "$date" "$@")"
     echo "$output	$tz"
 done
