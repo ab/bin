@@ -1,0 +1,92 @@
+#!/bin/bash
+
+set -euo pipefail
+
+usage() {
+    cat >&2 <<EOM
+usage: $(basename "$0") DIRECTORY...
+
+Run checksum (sha256 by default) over all files in a directory. This is roughly
+equivalent to \`find DIRECTORY -type f -print0 | xargs -0 sha256sum\`.
+
+Do NOT pass this program untrusted DIRECTORY names, because they could be used
+to instruct find(1) to run arbitrary commands.
+
+options:
+    -h       show this help message
+    -a ALGO  Use ALGO for checksums
+    -L       Follow symlinks -- see find(1) -L
+EOM
+}
+
+get_bsd_cmd() {
+    case "$1" in
+        md5)    echo md5 -r ;;
+        sha1)   echo shasum -a 1 ;;
+        sha224) echo shasum -a 224 ;;
+        sha256) echo shasum -a 256 ;;
+        sha384) echo shasum -a 384 ;;
+        sha512) echo shasum -a 512 ;;
+        *)
+            echo >&2 "Unknown algo $1"
+            return 3
+            ;;
+    esac
+}
+
+get_gnu_cmd() {
+    case "$1" in
+        md5)    echo md5sum ;;
+        sha1)   echo sha1sum ;;
+        sha224) echo sha224sum ;;
+        sha256) echo sha256sum ;;
+        sha384) echo sha384sum ;;
+        sha512) echo sha512sum ;;
+        *)
+            echo >&2 "Unknown algo $1"
+            return 3
+            ;;
+    esac
+}
+
+algo=sha256
+find_opts=()
+
+while getopts a:hL OPT; do
+    case "$OPT" in
+        a)  algo="$OPTARG" ;;
+        h)
+            usage
+            exit 0
+            ;;
+        L)
+            find_opts+=("-L")
+            ;;
+        \?)
+            echo >&2 "Unknown option $OPT"
+            usage
+            exit 1
+            ;;
+    esac
+done
+
+shift $((OPTIND-1))
+
+if [ $# -eq 0 ]; then
+    usage
+    exit 1
+fi
+
+case "$OSTYPE" in
+    darwin*)
+        cmd=( $(get_bsd_cmd "$algo") )
+        ;;
+    *)
+        cmd=( $(get_gnu_cmd "$algo") )
+        ;;
+esac
+
+find_opts+=("$@")
+
+set -x
+find "${find_opts[@]}" -type f -print0 | xargs -0 "${cmd[@]}"
