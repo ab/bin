@@ -1,0 +1,94 @@
+#!/usr/bin/env python
+from __future__ import print_function
+
+import optparse
+import sys
+import time
+
+class TimeError(Exception):
+    pass
+
+def round_up(n, bucket):
+    """
+    Round n up to the next greater multiple of bucket.
+
+    For example:
+        round_up(41, 10) => 50
+
+        round_up(40, 10) => 50
+
+        round_up(260, 128) => 384
+
+    It also seems to work rounding down with negative buckets, but this is
+    untested.
+    """
+
+    return n + (bucket - divmod(n, bucket)[1])
+
+
+def sleep_until(timestamp, round_bucket=None, verbose=True):
+
+    if round_bucket:
+        if timestamp:
+            raise ValueError('cannot pass round_bucket and timestamp')
+
+        if round_bucket <= 0:
+            raise ValueError('round_bucket must be positive')
+
+        next_rounded = round_up(time.time(), round_bucket)
+        duration = next_rounded - time.time()
+
+        assert duration > 0
+
+    else:
+        duration = timestamp - time.time()
+
+        if duration < 0:
+            readable = time.strftime('%F %T', time.localtime(timestamp))
+            raise TimeError(
+                'Timestamp {!r} is in the past, {:.0f} seconds ago'.format(
+                    timestamp, -duration))
+
+    if verbose:
+        print("sleep-until: sleep {:.2f}".format(duration))
+
+    time.sleep(duration)
+
+def main():
+    usage = '''%prog [options] UNIX_STAMP
+
+Sleep until UNIX_STAMP.
+'''.rstrip()
+    p = optparse.OptionParser(usage=usage)
+    p.add_option('-q', '--quiet', dest='verbose', action='store_false',
+                 help='Suppress output', default=True)
+    p.add_option('-r', '--round', dest='round', metavar='MIN', type='int',
+                 help='Sleep between MIN and MIN * 2 seconds')
+
+    opts, args = p.parse_args()
+
+    if opts.round:
+        if len(args) != 0:
+            p.error('Cannot pass --round and UNIX_STAMP')
+        timestamp = None
+
+    else:
+        if len(args) != 1:
+            p.print_help()
+            return 1
+
+        timestamp = float(args[0])
+
+    try:
+        sleep_until(timestamp=timestamp, round_bucket=opts.round,
+                    verbose=opts.verbose)
+    except TimeError as e:
+        p.error(e.message)
+        assert False
+    except KeyboardInterrupt:
+        return 130
+
+    return 0
+
+if __name__ == '__main__':
+    sys.exit(main())
