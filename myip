@@ -1,0 +1,17 @@
+#!/bin/bash
+set -euo pipefail
+
+if [ $# -ge 1 ] && [ "$1" = "-4" ]; then
+  curl_opts=-4
+else
+  curl_opts=
+fi
+
+run() {
+    echo >&2 "+ $*"
+    "$@"
+}
+
+run curl $curl_opts -sS https://www.google.com/search?q=my+ip+address \
+    | grep -Eo 'Client IP address: [0-9a-f:\.]+' \
+    | awk '{ print $NF }'
