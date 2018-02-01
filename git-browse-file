@@ -1,0 +1,100 @@
+#!/bin/bash
+set -euo pipefail
+
+run() {
+    if [ -z "$quiet" ]; then
+        echo >&2 "+ $*"
+    fi
+    "$@"
+}
+
+usage() {
+    cat >&2 <<EOM
+usage: $(basename "$0") [OPTIONS...] FILE
+
+Open a web browser to look at the named FILE on Github on the current branch.
+
+This is like \`hub browse\`, but actually knows where to find files on Github,
+and handles relative paths correctly.
+
+Options:
+  -u, --url-only    Print URL rather than opening browser
+  -h, --help        Show this help message
+  -q, --quiet       Be less verbose
+
+EOM
+}
+
+quiet=
+url_only=
+
+while [ $# -gt 0 ] && [[ "$1" = -* ]]; do
+    case "$1" in
+        -h|--help)
+            usage
+            exit
+            ;;
+        -u|--url-only)
+            url_only=1
+            ;;
+        -q|--quiet)
+            quiet=1
+            ;;
+        *)
+            echo >&2 "Error: unexpected option $1"
+            usage
+            exit 1
+            ;;
+    esac
+    shift
+done
+
+
+if [ $# -ne 1 ]; then
+    echo "FILE is required"
+    usage
+    exit 1
+fi
+
+filename="$1"
+
+repo_url="$(run hub browse -u)"
+
+# Get the current branch name, in a symbolic format if one is available.
+# The first command will return a branch name like `master` if we're on a
+# branch. It will exit nonzero if HEAD is detached. The second command will
+# always return the actual SHA1 that HEAD refers to.
+current_git_ref_name="$(run git symbolic-ref --short -q HEAD || run git rev-parse HEAD)"
+
+# Find the path to the requested file
+full_path="$(run git ls-tree --full-name --name-only HEAD "$filename")"
+
+# If the requested file is a directory, then ls-tree will have returned a list
+# of filenames. Call dirname on the first one.
+if [ -d "$filename" ]; then
+    full_path="$(dirname "$(head -1 <<< "$full_path")")"
+    thing=tree
+else
+    thing=blob
+fi
+
+full_url="$repo_url/$thing/$current_git_ref_name/$full_path"
+
+if [ -n "$url_only" ]; then
+    echo "$full_url"
+    exit
+fi
+
+
+if type -t xdg-open >/dev/null; then
+    run xdg-open "$full_url"
+    exit
+fi
+
+if type -t open >/dev/null; then
+    run open "$full_url"
+    exit
+fi
+
+echo >&2 "Error: couldn't find open or xdg-open to load a browser with"
+exit 2
