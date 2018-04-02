@@ -1,0 +1,170 @@
+#!/usr/bin/env ruby
+
+require 'securerandom'
+require 'optparse'
+
+class DiceError < StandardError; end
+
+class Roller
+  def initialize(zero_index: false, allow_single_sided: false)
+    @zero_index = zero_index
+    @allow_single_sided = allow_single_sided
+  end
+
+  def parse_and_roll_to_stdout(spec_arr)
+    parse_dice_spec(spec_arr) do |range|
+      puts roll(range)
+    end
+  end
+
+  def roll(range)
+    min = range.first
+    max = range.last
+
+    if !min.is_a?(Integer) || !max.is_a?(Integer)
+      raise ArgumentError.new("Range must be integers, got #{range.inspect}")
+    end
+
+    if min == max && !@allow_single_sided
+      raise DiceError.new("Die min must be < die max, got #{range.inspect}")
+    end
+
+    if min > max
+      raise DiceError.new("Die min must be <= die max, got #{range.inspect}")
+    end
+
+    if max < 1
+      raise DiceError.new("Die max must be >= 1, got #{range.inspect}")
+    end
+
+    SecureRandom.random_number(max + 1 - min) + min
+  end
+
+  # If a block is given, yield the Range of each parsed die roll to it one by
+  # one. If not, return them all as an array.
+  #
+  # @param [Array<String>] spec_arr
+  # @return [Array<Range>] an array of ranges representing the min/max of each
+  #   die roll.
+  # @yield [Range] a range representing the min/max of each die roll.
+  def parse_dice_spec(spec_arr)
+    unless block_given?
+      return enum_for(:parse_dice_spec, spec_arr).to_a
+    end
+
+    spec_arr.each do |spec|
+      parse_single_die_spec(spec) do |x|
+        yield x
+      end
+    end
+
+    nil
+  end
+
+  private
+
+  # @param [String] spec A description of the dice to roll.
+  # @yield [Range] a pair of integers representing the min/max of each die
+  #   roll.
+  def parse_single_die_spec(spec)
+    case spec
+
+      # parse as base 10 integer
+    when /\A[0-9]+\z/
+      max = Integer(spec, 10)
+      if @zero_index
+        yield 0..(max - 1)
+      else
+        yield 1..max
+      end
+
+      # parse as <count>d<sides>
+    when /\A[0-9]+d[0-9]+\z/
+      count, sides = spec.split('d')
+      count = Integer(count, 10)
+      sides = Integer(sides, 10)
+      count.times do
+        if @zero_index
+          yield 0..(sides - 1)
+        else
+          yield 1..sides
+        end
+      end
+
+      # parse as <min>-<max>
+    when /\A[0-9]+-[0-9]+\z/
+      min, max = spec.split('-')
+      min = Integer(min, 10)
+      max = Integer(max, 10)
+      yield min..max
+
+    else
+      raise DiceError.new("Cannot parse #{spec.inspect}")
+    end
+  end
+end
+
+def main
+  basename = File.basename($0)
+
+  options = {}
+  optparse = OptionParser.new do |opts|
+    opts.banner = <<-EOM
+usage: #{basename} [OPTIONS] DICE_SPEC...
+
+Roll some number of dice following the provided DICE_SPEC. Each die roll is
+output on its own line.
+
+For example:
+  # Print random number 1-100
+  #{basename} 100
+
+  # Print random number 0-9
+  #{basename} -0 10
+
+  # Print 4 numbers 1-6
+  #{basename} 4d6
+
+  # Print random number 5-10 then 90-100
+  #{basename} 5-10 90-100
+
+  # Print 5 numbers 0-99
+  #{basename} --zero 5d100
+
+Options:
+    EOM
+
+    opts.on('-h', '--help', 'Display this message') do
+      puts opts
+      return 0
+    end
+
+    opts.on('-0', '--zero', 'Use 0, not 1, as bottom of range') do
+      options[:zero_index] = true
+    end
+
+    opts.on('--allow-single', 'Allow single sided die') do
+      options[:allow_single_sided] = true
+    end
+  end
+
+  optparse.order!
+
+  if ARGV.empty?
+    puts optparse
+    return 1
+  end
+
+  r = Roller.new(**options)
+  r.parse_and_roll_to_stdout(ARGV)
+
+  return 0
+
+rescue DiceError => err
+  STDERR.puts 'error: ' + err.message
+  return 2
+end
+
+if $0 == __FILE__
+  exit main
+end

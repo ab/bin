@@ -1,0 +1,23 @@
+#!/usr/bin/env python
+
+import random
+import sys
+import textwrap
+
+system_random = random.SystemRandom()
+
+def main(choices):
+    """
+    usage: choice CHOICES...
+
+    Pick a value at random among CHOICES.
+    """
+    if not choices:
+        sys.stderr.write(textwrap.dedent(main.__doc__))
+        return 1
+
+    print system_random.choice(choices)
+
+if __name__ == '__main__':
+    main(sys.argv[1:])
+
