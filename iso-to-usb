@@ -1,0 +1,138 @@
+#!/bin/bash
+set -euo pipefail
+
+run() {
+    echo >&2 "+ $*"
+    "$@"
+}
+
+cleanup() {
+    if [ -d "${loop_path-}" ]; then
+        run umount "$loop_path"
+        run rmdir "$loop_path"
+    fi
+    if [ -d "${tmpdir-}" ]; then
+        run rmdir "$tmpdir"
+    fi
+}
+
+usage() {
+    cat >&2 <<EOM
+usage: $(basename "$0") [options] ISO_FILE MOUNTED_USB_PATH
+
+Burn ISO_FILE to a USB drive mounted at MOUNTED_USB_PATH.
+
+Options:
+    -h, --help              Print this help message
+    --delete                Delete unknown files from MOUNTED_USB_PATH
+    --delete-exclude DIR    Delete all files from MOUNTED_USB_PATH except DIR
+
+EOM
+}
+
+mount_iso() {
+    local iso_file mount_path
+    iso_file="$1"
+    mount_path="$2"
+    mkdir -v "$mount_path"
+    run mount -o loop "$iso_file" "$mount_path"
+}
+
+device_for_mount_point() {
+    run findmnt -n --output=source "$1"
+}
+
+copy_files() {
+    local rsync_opts
+    rsync_opts=("-v")
+
+    if [ -n "$delete" ]; then
+        rsync_opts+=("--del")
+    fi
+    if [ -n "$delete_exclude" ]; then
+        rsync_opts+=("--exclude" "$delete_exclude")
+    fi
+
+    run rsync "${rsync_opts[@]}" -c -rpt "$loop_path/" "$mounted_usb_path/"
+}
+
+setup_boot() {
+    run mv -vT "$mounted_usb_path/isolinux" "$mounted_usb_path/syslinux"
+    run mv -vT "$mounted_usb_path/syslinux/"{iso,sys}linux.cfg
+    run syslinux -s "$usb_partition"
+}
+
+check_partition_bootable() {
+    local disk partition
+    partition="$1"
+    disk="/dev/$(run lsblk -no pkname "$partition")"
+
+    if run parted -m -s "$disk" print | grep boot; then
+        echo "Looks like disk is bootable"
+    else
+        echo "Doesn't look like partition $partition is bootable!"
+        echo "Please make sure that it has the boot partition flag"
+    fi
+}
+
+delete=
+delete_exclude=
+
+while [ $# -gt 0 ] && [[ $1 == -* ]]; do
+    case "$1" in
+        --delete)
+            delete=1
+            ;;
+        --delete-exclude)
+            delete=1
+            delete_exclude="$2"
+            shift
+            ;;
+        -h|--help)
+            usage
+            exit
+            ;;
+        *)
+            usage
+            echo >&2 "Unknown option $1"
+            exit 1
+            ;;
+    esac
+    shift
+done
+
+if [ $# -ne 2 ]; then
+    usage
+    exit 1
+fi
+
+iso_file="$1"
+mounted_usb_path="$2"
+
+if [ "$(id -u)" -ne 0 ]; then
+    echo >&2 "error: This script must be run as root"
+    exit 1
+fi
+
+usb_partition="$(device_for_mount_point "$mounted_usb_path")"
+
+trap cleanup EXIT
+
+tmpdir="$(mktemp -d)"
+
+loop_path="$tmpdir/iso"
+
+mount_iso "$iso_file" "$loop_path"
+
+copy_files
+
+setup_boot
+
+check_partition_bootable "$usb_partition"
+
+trap - EXIT
+cleanup
+
+run sync -f "$mounted_usb_path"
+
+echo "All done!"
