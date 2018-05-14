@@ -1,6 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 
+# See also https://github.com/jsamr/bootiso
+
 run() {
     echo >&2 "+ $*"
     "$@"
@@ -62,10 +64,12 @@ setup_boot() {
     run syslinux -s "$usb_partition"
 }
 
-check_partition_bootable() {
+check_partition_bootable_and_install_mbr() {
     local disk partition
     partition="$1"
     disk="/dev/$(run lsblk -no pkname "$partition")"
+
+    run install-mbr "$disk"
 
     if run parted -m -s "$disk" print | grep boot; then
         echo "Looks like disk is bootable"
@@ -128,7 +132,7 @@ copy_files
 
 setup_boot
 
-check_partition_bootable "$usb_partition"
+check_partition_bootable_and_install_mbr "$usb_partition"
 
 trap - EXIT
 cleanup
