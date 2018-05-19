@@ -1,6 +1,6 @@
 #!/bin/bash
-# version 1.0
-set -eu
+# version 1.1
+set -euo pipefail
 
 run() {
     echo>&2 "+ $*"
@@ -88,10 +88,12 @@ for file in "$@"; do
             ;;
     esac
 
-    if [ -r "$file.gpg" ]; then
+    if [ -r "$file.sig" ]; then
+        run gpg --verify "$file.sig" "$file"
+    elif [ -r "$file.gpg" ]; then
         run gpg --verify "$file.gpg" "$file"
     else
-        warn "Warning: no signature found at $file.gpg"
+        warn "Warning: no signature found at $file.{gpg,sig}"
         delayerr=5
     fi
 
