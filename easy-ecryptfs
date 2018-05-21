@@ -1,0 +1,363 @@
+#!/bin/bash
+# Version 1.0
+set -euo pipefail
+
+BASENAME="$(basename "$0")"
+ECRYPTFS_CONFIG_DIR="$HOME/.ecryptfs"
+KEYBYTES=16 # must match what mount.ecryptfs_private allows
+DEBUG=1
+
+log_debug() {
+    if [ -n "$DEBUG" ]; then
+        echo >&2 "$BASENAME: DEBUG: $*"
+    fi
+}
+
+usage() {
+    cat >&2 <<EOM
+usage: $BASENAME COMMAND ARGS...
+
+Supported commands:
+
+    $BASENAME mount <DIRECTORY|LABEL>
+
+    $BASENAME umount <DIRECTORY|LABEL>
+
+    $BASENAME create LABEL LOWER MOUNTPOINT
+
+    $BASENAME import LOWER
+
+    $BASENAME status
+
+Directory names containing spaces are unsupported.
+
+EOM
+}
+
+# usage: getpass [PROMPT]
+#
+# Prompt the user for a password
+#
+getpass() {
+    local prompt ans
+    case "$#" in
+        0)
+            prompt="Password: "
+            ;;
+        1)
+            prompt="$1"
+            ;;
+        *)
+            echo >&2 "error: getpass: unexpected arguments: $*"
+            return 1
+            ;;
+    esac
+
+    read -s -p "$prompt" ans
+
+    echo -n "$ans"
+
+    echo >&2
+}
+
+random_hex_key() {
+    local bytes
+    bytes="$1"
+    log_debug "Generating ${bytes}-byte key"
+    head -c "$bytes" /dev/random | xxd -p | tr -d '\n'
+}
+
+# usage: read_label_from_config FILENAME
+#
+# Given an easy-ecryptfs config file, parse out the label
+# The file should be simple "key=value" lines, with no whitespace. Any special
+# characters in value are treated as is.
+read_label_from_config() {
+    if [ ! -f "$1" ]; then
+        echo >&2 "error: Expected to find easy-ecryptfs.conf at '$1'"
+        echo >&2 "PWD: $PWD"
+        return 1
+    fi
+    log_debug "Reading config from '$(readlink -m "$1")'"
+    grep '^label=' "$1" | cut -d '=' -f '2-'
+}
+
+# Assert that the given label contains alphanumerics plus - and _
+check_valid_label() {
+    if [ -z "$1" ]; then
+        echo >&2 "error: label must not be empty"
+    fi
+
+    if [ "$(tr -d 'a-zA-Z0-9_-' <<< "$1")" != '' ]; then
+        echo >&2 "error: label $1 contains invalid characters"
+        return 1
+    fi
+}
+
+assert_not_exists() {
+    if [ -e "$1" ]; then
+        echo >&2 "error: file or directory already exists: $1"
+        return 1
+    fi
+}
+
+run() {
+    echo >&2 "+ $*"
+    "$@"
+}
+
+# usage: load_passphrase DIRECTORY
+#
+# Using the wrapped ecryptfs passphrase found at DIRECTORY/wrapped-passphrase,
+# prompt for the wrapping password, unwrap the wrapped passphrase and insert it
+# into the kernel keyring with ecryptfs-insert-wrapped-passphrase-into-keyring.
+#
+load_passphrase() {
+    local dir filename
+    dir="$1"
+    if [ ! -d "$dir" ]; then
+        echo >&2 "error: no such directory: $dir"
+        return 1
+    fi
+
+    filename="$(readlink -f "$dir/wrapped-passphrase")"
+    if ! [ -e "$filename" ]; then
+        echo >&2 "error: no such file: $filename"
+        return 1
+    fi
+    run ecryptfs-insert-wrapped-passphrase-into-keyring "$filename"
+}
+
+# usage: resolve_label LABEL
+# usage: resolve_label DIRECTORY
+#
+# Given a user-provided argument that may be a label or a directory name,
+# determine what the label should be.
+resolve_label() {
+    local name config_file label lower_dir mount_dir
+    name="$1"
+
+    # Check if name is a valid label
+    config_file="$ECRYPTFS_CONFIG_DIR/$name.conf"
+    if [ -e "$config_file" ]; then
+        log_debug "Found config file at $config_file"
+        echo "$name"
+        return
+    fi
+
+    # Check if name is a directory
+    if ! [ -d "$name" ]; then
+        echo >&2 "error: $name is neither label nor directory"
+        echo >&2 "No label config found at $config_file"
+        echo >&2 "No directory found at $name"
+        return 1
+    fi
+
+    if [ -e "$name/easy-ecryptfs.conf" ]; then
+        # if easy-ecryptfs.conf exists, treat as lower
+        log_debug "Found lower directory config at $name/easy-ecryptfs.conf"
+        label="$(read_label_from_config "$name/easy-ecryptfs.conf")"
+
+    elif [ -e "$name/easy-ecryptfs.source" ]; then
+        # if easy-ecryptfs.source exists, treat as mountpoint
+        log_debug "Found mount point config at $name/easy-ecryptfs.source"
+        mount_dir="$name"
+        lower_dir="$(cat "$name/easy-ecryptfs.source")"
+        # interpret lower_dir path as relative to mount_dir
+        label="$(CDPATH='' cd "$mount_dir" && \
+            read_label_from_config "$lower_dir/easy-ecryptfs.conf")"
+    else
+        echo >&2 "error: $name is a directory, but no config found"
+        echo >&2 "Could not find easy-ecryptfs.conf or easy-ecryptfs.source"
+        return 2
+    fi
+
+    # make sure expected config file exists
+    config_file="$ECRYPTFS_CONFIG_DIR/$label.conf"
+    if [ -e "$config_file" ]; then
+        echo "$label"
+        return
+    fi
+
+    cat >&2 <<EOM
+The easy-ecryptfs config files say the label should be '$label',
+but no config file was found at '$config_file'.
+
+If you would like to create this config file based on the easy-ecryptfs config,
+then try running:
+    $BASENAME import $name
+EOM
+    return 3
+}
+
+cmd_mount() {
+    local name label lower_dir mount_dir config_file
+    name="$1"
+
+    label="$(resolve_label "$name")"
+
+    config_file="$ECRYPTFS_CONFIG_DIR/$label.conf"
+    lower_dir="$(head -1 "$config_file" | cut -f1 -d' ')/.."
+
+    load_passphrase "$lower_dir"
+
+    run mount.ecryptfs_private "$label"
+}
+
+cmd_umount() {
+    local name label
+    name="$1"
+
+    label="$(resolve_label "$name")"
+
+    run umount.ecryptfs_private "$label"
+    echo OK
+}
+
+# usage: cmd_create LABEL LOWER_DIR MOUNT_DIR
+cmd_create() {
+    local label lower_dir mount_dir
+    # TODO update locals
+    label="$1"
+    lower_dir="$2"
+    mount_dir="$3"
+
+    check_valid_label "$label"
+
+    assert_not_exists "$lower_dir"
+    assert_not_exists "$mount_dir"
+
+    mkdir -v -m 700 "$lower_dir"
+    mkdir -v -m 700 "$lower_dir/root"
+    mkdir -v -m 700 "$mount_dir"
+
+    # Use absolute paths for lower and mount directories
+    lower_dir="$(readlink -e "$lower_dir")"
+    mount_dir="$(readlink -e "$mount_dir")"
+
+    cat > "$lower_dir/easy-ecryptfs.conf" <<EOM
+label=$label
+created=$(date --rfc-3339=seconds)
+EOM
+    chmod -w "$lower_dir/easy-ecryptfs.conf"
+
+    cat > "$mount_dir/README.txt" <<EOM
+This directory is the unmounted mount point for an ecryptfs filesystem.
+
+When this filesystem was set up by easy-ecryptfs on $(date +%F), it had
+these settings:
+
+    lower: $lower_dir
+    mount: $mount_dir
+    label: $label
+
+Mount the filesystem with this command:
+
+    easy-ecryptfs mount $label
+
+EOM
+
+    echo "$lower_dir" > "$mount_dir/easy-ecryptfs.source"
+
+    chmod -R u-w,go-rwx "$mount_dir/"
+
+    # create fstab style config file used by mount.ecryptfs_private
+    config_file="$lower_dir/$label.conf"
+    echo "$lower_dir/root $mount_dir ecryptfs" > "$config_file"
+
+    log_debug "Created config files and README"
+
+    mount_key="$(random_hex_key "$KEYBYTES")"
+    wrapping_pass="$(getpass 'Passphrase: ')"
+
+    run ecryptfs-wrap-passphrase "$lower_dir/wrapped-passphrase" - <<EOM
+$mount_key
+$wrapping_pass
+EOM
+    chmod 400 "$lower_dir/wrapped-passphrase"
+    log_debug "Saved wrapped passphrase to $lower_dir/wrapped-passphrase"
+
+    log_debug "Inserting key into kernel keyring"
+    response="$(run ecryptfs-add-passphrase --fnek - <<< "$mount_key")"
+
+    sigs="$(echo "$response" | grep "Inserted auth tok" | sed "s/^.*\[//" | sed "s/\].*$//")"
+
+    # There should be two signatures, one for content and one for fnek
+    if [ "$(wc -l <<< "$sigs")" -ne 2 ]; then
+        echo >&2 "error: failed to parse ecryptfs-add-passphrase output"
+        echo >&2 "output: '''$response'''"
+        return 3
+    fi
+
+    # Validate each signature is hex of the expected length
+    echo "$sigs" | while read line; do
+        if egrep -vq "^[0-9a-fA-F]{$KEYBYTES,$KEYBYTES}$" <<< "$line"; then
+            echo >&2 "Invalid hex key signature: '$line'"
+            return 3
+        fi
+    done
+
+    # Write to sig file
+    sig_file="$lower_dir/$label.sig"
+    echo "$sigs" > "$sig_file"
+    chmod 444 "$sig_file"
+
+    log_debug "Saved key signatures to $sig_file"
+
+    # create symlinks in ~/.ecryptfs pointing to our lower configs
+    log_debug "Symlinking configuration into $ECRYPTFS_CONFIG_DIR"
+    ln -svt "$ECRYPTFS_CONFIG_DIR/" "$config_file" "$sig_file"
+
+    cat <<EOM
+
+Your new ecryptfs partition is ready to go!"
+
+Mount command:
+    $BASENAME mount $label
+
+Unmount command:
+    $BASENAME umount $label
+EOM
+}
+
+cmd_import() {
+    # TODO
+    echo 'Not yet implemented'
+    return 3
+}
+
+cmd_status() {
+    run keyctl show
+    run grep ecryptfs /proc/mounts
+}
+
+if [ $# -lt 1 ]; then
+    usage
+    exit 1
+fi
+
+cmd="$1"
+shift
+
+case "$cmd" in
+    mount)
+        cmd_mount "$@"
+        ;;
+    umount|unmount)
+        cmd_umount "$@"
+        ;;
+    create)
+        cmd_create "$@"
+        ;;
+    status)
+        cmd_status "$@"
+        ;;
+    import)
+        cmd_import "$@"
+        ;;
+    *)
+        usage
+        echo >&2 "error: unknown command '$cmd'"
+        exit 1
+        ;;
+esac
