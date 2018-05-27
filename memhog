@@ -44,17 +44,19 @@ def total_system_memory_bytes():
     return os.sysconf('SC_PAGE_SIZE') * os.sysconf('SC_PHYS_PAGES')
 
 
-def chunk_size_for_system():
-    total_mem_mb = total_system_memory_bytes() / 1024.0 / 1024.0
+def chunk_size_for_system(total_mem_mb=None):
+    if total_mem_mb is None:
+        total_mem_mb = total_system_memory_bytes() / 1024.0 / 1024.0
     # Using arrays that are 150x the system memory in MB by experiment appears
     # to result in each chunk being about 0.6% of the total system memory.
     return round(total_mem_mb * 150)
 
 
-def hog_memory(interval=0.1, interactive=False, cap=None, chunk_length=None):
+def hog_memory(interval=0.1, interactive=False, cap=None, chunk_length=None,
+               total_mem=None):
     db = []
     if chunk_length is None:
-        chunk_length = chunk_size_for_system()
+        chunk_length = chunk_size_for_system(total_mem_mb=total_mem)
     print('Memhog starting up, PID:', os.getpid())
     print('Using chunks of length:', chunk_length)
 
@@ -98,6 +100,7 @@ if __name__ == '__main__':
 
     try:
         hog_memory(interval=opts.interval, interactive=opts.interactive,
-                   cap=opts.cap, chunk_length=opts.chunk_length)
+                   cap=opts.cap, chunk_length=opts.chunk_length,
+                   total_mem=opts.total_mem)
     except KeyboardInterrupt:
         print('')
