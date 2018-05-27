@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 """
+usage: cpuhog [NUM_PROCS]
+
 CPUHog will hog your CPU.
 """
 
@@ -7,23 +9,30 @@ import multiprocessing
 import os
 import sys
 
+
 def hog():
-    print 'hog started:', os.getpid()
+    print('hog started: %d' % os.getpid())
     try:
         while True:
             pass
     except KeyboardInterrupt:
         pass
 
+
 def run_hogs(num_hogs):
-    print 'Launching %d hogs' % num_hogs
+    print('Launching %d hogs' % num_hogs)
     procs = [multiprocessing.Process(target=hog) for i in range(num_hogs)]
     for p in procs:
         p.start()
     for p in procs:
         p.join()
 
+
 if __name__ == '__main__':
+    if '-h' in sys.argv or '--help' in sys.argv:
+        print(__doc__.strip())
+        sys.exit()
+
     if len(sys.argv) > 1:
         num = int(sys.argv[1])
     else:
@@ -32,4 +41,4 @@ if __name__ == '__main__':
     try:
         run_hogs(num)
     except KeyboardInterrupt:
-        print ''
+        print('')
