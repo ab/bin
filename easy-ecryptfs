@@ -125,6 +125,12 @@ load_passphrase() {
         echo >&2 "error: no such file: $filename"
         return 1
     fi
+    if ! keyctl show | grep -q "_uid.$UID"; then
+        # link user keyring to session keyring as needed for gnome
+        # https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=870126
+        # https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=870335
+        run keyctl link @u @s
+    fi
     run ecryptfs-insert-wrapped-passphrase-into-keyring "$filename"
 }
 
