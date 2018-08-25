@@ -8,20 +8,13 @@ set -e
 # Default-Start:     2 3 4 5
 # Default-Stop:      0 1 6
 # Short-Description: Create ramdisk at boot
-# Description:       Create and mount a ramdisk on LVM out of /dev/ramN.
+# Description:       Create and mount a ramdisk using ramfs.
 ### END INIT INFO
 
 # mountpoint settings
 mount=/mnt/ramdisk
 mount_chown=root:
 mount_chmod=0755
-
-# volume group and logical volume name
-vgname=ramdisk
-lvname=main
-
-# number of devices out of /dev/ramN to use
-ndisks=1
 
 PATH=/sbin:/bin:/usr/sbin:/usr/bin
 
@@ -32,25 +25,12 @@ usage() {
 }
 
 do_start() {
-    if lvdisplay "$vgname/$lvname" >/dev/null 2>&1; then
-        echo >&2 "$vgname/$lvname already exists!"
+    if grep "$mount" /proc/mounts; then
+        echo >&2 "$mount is already mounted!"
         exit 1
     fi
 
-    devs="$(for i in $(seq 0 $((ndisks - 1))); do echo "/dev/ram$i"; done)"
-
-    for dev in $devs; do
-        pvcreate "$dev" >/dev/null
-    done
-
-    # shellcheck disable=SC2086
-    vgcreate "$vgname" $devs >/dev/null
-
-    lvcreate -n "$lvname" -l 100%FREE "$vgname" >/dev/null
-
-    mke2fs -q -m 0 "/dev/$vgname/$lvname"
-
-    mount "/dev/$vgname/$lvname" "$mount"
+    mount -t ramfs myramdisk "$mount"
     chown "$mount_chown" "$mount"
     chmod "$mount_chmod" "$mount"
 
@@ -61,14 +41,9 @@ do_stop() {
     if [ -e "$mount" ]; then
         umount "$mount"
     fi
-    lvchange -an "$vgname/$lvname"
-    lvremove -f "$vgname/$lvname" >/dev/null
-    vgremove "$vgname" >/dev/null
 }
 
 do_status() {
-    vgdisplay "$vgname"
-    lvdisplay "$vgname/$lvname"
     df -Ph "$mount"
 }
 
