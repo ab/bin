@@ -5,8 +5,9 @@ set -o nounset
 
 list_installed() {
     # shellcheck disable=SC2016
-    dpkg-query -W -f '${Package}\t${Status}\n' | \
-        sed -n 's/\tinstall ok installed$//p' | grep "$1"
+    dpkg-query -W -f '${Package}\t${Status}\n' \
+        | sed -rn 's/\t(install|deinstall) ok (installed|config-files)$//p' \
+        | grep "$1"
 }
 
 running="$(uname -r | cut -d'-' -f 1-2)"
@@ -15,14 +16,19 @@ latest="$(list_installed 'linux-image-[0-9]\+' | \
 
 pkgs="$(grep -v -h -e "$latest" -e "$running" \
     <(list_installed 'linux-image-[0-9]\+') \
-    <(list_installed 'linux-headers-[0-9]\+'))"
+    <(list_installed 'linux-headers-[0-9]\+') \
+    <(list_installed 'linux-modules-[0-9]\+') \
+    <(list_installed 'linux-modules-extra-[0-9]\+')
+)"
 
 echo "Packages to remove:"
 echo "$pkgs"
 echo ""
 
-read -s -n 1 -p "Press any key to continue..."
+read -s -n 1 -r -p "Press any key to continue..."
 echo -e "\n"
+
+# TODO ensure that we don't uninstall linux-image-generic
 
 set -x
 # shellcheck disable=SC2086
