@@ -32,6 +32,16 @@ Options:
 EOM
 }
 
+check_dependencies() {
+    for dep in findmnt install-mbr mount mv rmdir rsync sync syslinux umount
+    do
+        if ! which "$dep" >/dev/null; then
+            echo >&2 "Failed to find dependency on PATH: $dep"
+            return 1
+        fi
+    done
+}
+
 mount_iso() {
     local iso_file mount_path
     iso_file="$1"
@@ -117,6 +127,8 @@ if [ "$(id -u)" -ne 0 ]; then
     echo >&2 "error: This script must be run as root"
     exit 1
 fi
+
+check_dependencies
 
 usb_partition="$(device_for_mount_point "$mounted_usb_path")"
 
