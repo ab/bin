@@ -14,8 +14,8 @@ VERSION = '0.8'
 VERBOSE = 1
 
 HOST = socket.gethostname().split('.')[0]
-SSH_HOST = "dellblue-backup"
-REMOTE_DIR = "/media/T-disk/snapshot"
+SSH_HOST = "lambda-backup"
+REMOTE_DIR = "/home/andy/backup/T-disk/snapshot"
 CUR_SNAP = "daily.0"
 LOCAL_CHECK_DIR = "/home/andy/Private/.ssh/"
 
