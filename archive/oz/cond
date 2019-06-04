@@ -1,0 +1,55 @@
+#!/usr/bin/env python
+"""Execute arbitrary actions when arbitrary condition is met."""
+
+VERSION = "0.1"
+
+import optparse
+import sys
+from subprocess import Popen, call, PIPE
+
+def main(condition, opts):
+    while call(condition) != 0:
+	if opts.dots:
+	    sys.stdout.write('.')
+	    sys.stdout.flush()
+
+    # done, execute actions
+    if opts.echo:
+	print "Condition passed!"
+    if opts.email:
+	raise NotImplementedError
+    if opts.command:
+	r = call(command)
+	if r != 0:
+	    print "Command '%s' exited with status %d." % (command, r)
+
+
+if __name__ == '__main__':
+    p = optparse.OptionParser(usage='%prog [options] CONDITION',
+                              version='%prog ' + VERSION)
+
+    g = optparse.OptionGroup(p, 'Actions')
+    g.add_option('-c', '--command', dest='command', action='store',
+		 help='action: execute the specified command')
+    g.add_option('-m', '--email', default=False,
+		 dest='email', action='store_true',
+		 help='action: send an email when finished (requires -t)')
+    g.add_option('-p', '--print', dest='echo', action='store_true',
+		 default=True, help='action: print a message on stdout')
+    p.add_option_group(g)
+
+    p.add_option('-t', '--to', dest='to', action='append', metavar='ADDRESS',
+		 help='send an email to the given address (implies -m)')
+    p.add_option('-s', '--subject', dest='subject', action='store',
+		 help='set the subject of the email')
+    p.add_option('-d', '--dots', dest='dots', action='store_true',
+		 default=True, help='print a dot on each loop')
+
+    opts, args = p.parse_args()
+    if len(args < 1):
+	p.error('must specify command')
+
+    condition = args
+
+    sys.exit(main(condition, opt))
+
