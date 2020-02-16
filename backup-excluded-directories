@@ -1,0 +1,33 @@
+#!/bin/bash
+set -euo pipefail
+
+usage() {
+    cat >&2 <<EOM
+usage: $0 DIR [TAG_FILE]
+
+Find and list subdirectories under DIR that should be excluded from backup
+because they contain TAG_FILE (default .ab-backup-exclude).
+EOM
+}
+
+if [ $# -lt 1 ]; then
+    usage
+    exit 1
+fi
+
+relative="${relative-}"
+
+dir=$1
+tag_file="${2-.ab-backup-exclude}"
+
+if [ -n "$relative" ]; then
+    cd "$dir"
+    dir=.
+fi
+
+find "$dir" -type f -name "$tag_file" | while read -r file; do
+    if [ -n "$relative" ]; then
+        file="${file:2}"
+    fi
+    dirname "$file"
+done
