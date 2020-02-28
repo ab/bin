@@ -1,0 +1,5 @@
+#!/bin/bash
+set -euo pipefail
+# Accept a JSON array on stdin and convert to CSV
+set -x
+jq -r '(map(keys) | add | unique) as $cols | map(. as $row | $cols | map($row[.])) as $rows | $cols, $rows[] | @tsv'
