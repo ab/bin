@@ -1,0 +1,73 @@
+#!/usr/bin/env python3
+#
+#   http://tldp.org/HOWTO/Bash-Prompt-HOWTO/x329.html
+#
+#   This file echoes a bunch of color codes to the
+#   terminal to demonstrate what's available.  Each
+#   line is the color code of one forground color,
+#   out of 17 (default + 16 escapes), followed by a
+#   test use of that color on all nine background
+#   colors (default + 8 escapes).
+#
+
+TEST_TEXT = '  gYw  '   # sample text
+PRINT_RAW = False
+
+
+def test_colors(fg, bg, text=TEST_TEXT, raw=PRINT_RAW):
+    if raw:
+        escape = r'\033['
+    else:
+        escape = "\033["
+
+    if bg:
+        bg_mod = f"{escape}{bg}m"
+    else:
+        bg_mod = ''
+
+    return f"{escape}{fg}m{bg_mod}{text}{escape}m"
+
+
+def print_table(fg_colors, bg_colors):
+    print()
+    print(' ' * 18 + ''.join(f"{str(x) + 'm':<8}" for x in bg_colors))
+
+    for fg in [''] + list(fg_colors):
+        for bold in ['', '1;']:
+            fgb = bold + str(fg)
+            print(" %5sm " % fgb, end='')
+            for bg in [None] + list(bg_colors):
+                print(test_colors(fg=fgb, bg=bg), end=' ')
+            print()
+
+
+def print_palette():
+    if PRINT_RAW:
+        escape = r'\033['
+    else:
+        escape = "\033["
+
+    print()
+    i = 0
+    for row in [range(40, 48), range(100, 108)]:
+        for col in row:
+            print(f"{escape}{col}m      {escape}m ", end='')
+        print()
+        for col in row:
+            print(f"{escape}{col}m  {i:>2}  {escape}m ", end='')
+            i += 1
+        print()
+        for col in row:
+            print(f"{escape}{col}m      {escape}m ", end='')
+        print("\n")
+
+
+print_table(range(30, 38), range(40, 48))
+print_table(range(90, 98), range(100, 108))
+
+print()
+
+print_palette()
+
+print()
+print('Print these escapes prefixed with "\\033["')
