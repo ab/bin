@@ -92,8 +92,10 @@ for file in "$@"; do
         run gpg --verify "$file.sig" "$file"
     elif [ -r "$file.gpg" ]; then
         run gpg --verify "$file.gpg" "$file"
+    elif [ -r "$file.sign" ]; then
+        run gpg --verify "$file.sign" "$file"
     else
-        warn "Warning: no signature found at $file.{gpg,sig}"
+        warn "Warning: no signature found at $file.{gpg,sig,sign}"
         delayerr=5
     fi
 
