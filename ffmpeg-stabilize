@@ -1,0 +1,62 @@
+#!/bin/bash
+set -euo pipefail
+
+run() {
+    echo >&2 "+ $*"
+    "$@"
+}
+
+cleanup() {
+    echo >&2 ERROR
+    if [ -n "${vectors-}" ]; then
+        rm -fv "$vectors"
+    fi
+}
+
+usage() {
+    cat >&2 <<EOM
+usage: $(basename "$0") INPUT OUTPUT
+
+Stabilize given input video using ffmpeg and vid.stab.
+EOM
+}
+
+colorecho() {
+    # shellcheck disable=SC2230
+    if which colorecho >/dev/null 2>&1; then
+        command colorecho "$@"
+    else
+        shift
+        echo "$@"
+    fi
+}
+
+if [ $# -ne 2 ]; then
+    usage
+    exit 1
+fi
+
+input="$1"
+output="$2"
+
+TMPDIR="${TMPDIR-/tmp}"
+
+vectors="$(mktemp "$TMPDIR/ffmpeg-stabilize.XXXXXXXX.trf")"
+trap cleanup EXIT
+
+echo >&2
+colorecho >&2 cyan "Generating transform vectors..."
+
+run ffmpeg -i "$input" \
+    -vf "vidstabdetect=stepsize=32:shakiness=10:accuracy=10:result=$vectors" \
+    -f null -
+
+echo >&2
+colorecho >&2 cyan "Generating output video..."
+
+ffmpeg -i "$input" -vf "vidstabtransform=input=$vectors:zoom=0:smoothing=10,unsharp=5:5:0.8:3:3:0.4" \
+    -vcodec libx264 -tune film -preset slow -acodec copy "$output"
+
+rm -fv "$vectors"
+echo >&2
+colorecho >&2 cyan "All done!"
