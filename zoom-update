@@ -1,0 +1,38 @@
+#!/bin/bash
+set -euo pipefail
+
+ZOOM_DOWNLOAD_DIR="${ZOOM_DOWNLOAD_DIR-"$HOME/Downloads/Installers"}"
+
+file="zoom_amd64.deb"
+
+tmpdir="$(mktemp -d)"
+# shellcheck disable=SC2064
+trap "rm -rfv $tmpdir" EXIT
+
+cd "$tmpdir"
+wget -nc "https://zoom.us/client/latest/$file"
+
+dpkg -e "$file"
+
+version="$(grep ^Version DEBIAN/control | cut -d ' ' -f 2)"
+
+if [ ! -d "$ZOOM_DOWNLOAD_DIR" ]; then
+    echo "Please set \$ZOOM_DOWNLOAD_DIR to something that exists"
+fi
+
+cd "$ZOOM_DOWNLOAD_DIR"
+
+target="zoom_amd64-$version.deb"
+
+if [ -e "$target" ]; then
+    echo "Target $target already exists. Nothing to do."
+    exit
+fi
+
+mv -v "$tmpdir/$file" "$target"
+
+rm -r "$tmpdir"
+trap - EXIT
+
+set -x
+sudo dpkg -i "$target"
