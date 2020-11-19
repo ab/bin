@@ -1,8 +1,6 @@
 #!/bin/bash
 set -euo pipefail
 
-nothing_to_do=1
-
 run() {
     echo >&2 "+ $*"
     "$@"
@@ -43,9 +41,16 @@ prompt_yn() {
     done
 }
 
+current_branch="$(git branch --show-current)"
+nothing_to_do=1
+
 for branch in $(git branch --format='%(refname:short)' --merged); do
-    if [[ $branch == master ]]; then continue; fi
-    if [[ $branch == stages/* ]]; then continue; fi
+    case "$branch" in
+        master|main)       continue ;;
+        stages/*)          continue ;;
+        "$current_branch") continue ;;
+    esac
+
     nothing_to_do=
     if prompt_yn "Delete '$branch'?"; then
         run git branch -d "$branch"
