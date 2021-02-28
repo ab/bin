@@ -1,10 +1,12 @@
 #!/bin/sh
 set -eu
 
+# shellcheck disable=SC2016
+# Also set titlestring in vimpager so we get the man page in the window title
+vim_cmd='set ft=man nomod nomodifiable | let &titlestring="man " . $MAN_PN'
+
 # We want --no-passthrough because vimcat has some braindead behavior with
 # fifos that results in deadlock on linux for certain inputs like `man timeout`
-
-vimpager --no-passthrough -c \
-    "set ft=man nomod nomodifiable | let &titlestring=\"man \" . \$MAN_PN" "$@" \
+vimpager --no-passthrough -c "$vim_cmd" "$@" \
     || exec less \
     || exec cat
