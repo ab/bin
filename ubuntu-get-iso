@@ -21,8 +21,8 @@ Options:
     -a          Download amd64 releases only
     -d          Download desktop releases only
     -s          Download server releases only
-    -w          Use wget as downloader
-    -z          Use zsync as downloader (default)
+    -w          Use wget as downloader (default)
+    -z          Use zsync as downloader
 
 Default mirror: $MIRROR
 
@@ -40,7 +40,7 @@ run() {
     "$@"
 }
 
-cmd=zsync
+cmd=wget
 
 while getopts adhm:swz OPT; do
     case $OPT in
@@ -82,7 +82,7 @@ fi
 
 version="$1"
 
-if [[ $version =~ ^([0-9]+\.[0-9]+)(\.([0-9]+))?$ ]]; then
+if [[ $version =~ ^([0-9]+\.[0-9]+)(\.([0-9]+))*$ ]]; then
     major="${BASH_REMATCH[1]}"
 else
     echo "Invalid version: $version"
@@ -94,7 +94,7 @@ echo >&2 "Mirror: $MIRROR"
 
 declare -a files urls
 files=(
-    {SHA1,SHA256}SUMS{,.gpg}
+    SHA256SUMS{,.gpg}
 )
 
 for suite in "${suites[@]}"; do
@@ -116,6 +116,10 @@ case "$cmd" in
     zsync)
         for url in "${urls[@]}"; do
             if [[ $url == *.iso ]]; then
+                if [[ $url == https://* ]]; then
+                    echo >&2 "zsync does not support https"
+                    return 1
+                fi
                 run zsync "$url.zsync"
             else
                 run wget -N "$url"
