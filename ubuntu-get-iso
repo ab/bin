@@ -4,7 +4,9 @@ set -eu
 MIRROR="${MIRROR-"https://mirror.math.princeton.edu/pub/ubuntu-iso"}"
 
 declare -a suites
-suites=("desktop-amd64" "server-amd64" "desktop-i386")
+suites=("desktop-amd64" "live-server-amd64" "server-amd64" "desktop-i386")
+
+# TODO: remove "server-amd64" and "desktop-i386", which no longer exist
 
 usage() {
     cat >&2 <<EOM
@@ -19,6 +21,8 @@ Options:
     -a          Download amd64 releases only
     -d          Download desktop releases only
     -s          Download server releases only
+    -w          Use wget as downloader
+    -z          Use zsync as downloader (default)
 
 Default mirror: $MIRROR
 
@@ -31,7 +35,14 @@ For example:
 EOM
 }
 
-while getopts adhm:s OPT; do
+run() {
+    echo >&2 "+ $*"
+    "$@"
+}
+
+cmd=zsync
+
+while getopts adhm:swz OPT; do
     case $OPT in
         h)
             usage
@@ -41,13 +52,19 @@ while getopts adhm:s OPT; do
             MIRROR="$OPTARG"
             ;;
         a)
-            suites=("desktop-amd64" "server-amd64")
+            suites=("desktop-amd64" "live-server-amd64" "server-amd64")
             ;;
         d)
             suites=("desktop-amd64" "desktop-i386")
             ;;
         s)
-            suites=("server-amd64")
+            suites=("live-server-amd64" "server-amd64")
+            ;;
+        w)
+            cmd=wget
+            ;;
+        z)
+            cmd=zsync
             ;;
         \?)
             usage
@@ -92,6 +109,21 @@ for file in "${files[@]}"; do
     urls+=("$MIRROR/$major/$file")
 done
 
-set -x
-
-exec wget -c "${urls[@]}"
+case "$cmd" in
+    wget)
+        run wget -c "${urls[@]}"
+        ;;
+    zsync)
+        for url in "${urls[@]}"; do
+            if [[ $url == *.iso ]]; then
+                run zsync "$url.zsync"
+            else
+                run wget -N "$url"
+            fi
+        done
+        ;;
+    *)
+        echo >&2 "Unexpected cmd: $cmd"
+        exit 3
+        ;;
+esac
