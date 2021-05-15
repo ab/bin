@@ -4,9 +4,7 @@ set -eu
 MIRROR="${MIRROR-"https://mirror.math.princeton.edu/pub/ubuntu-iso"}"
 
 declare -a suites
-suites=("desktop-amd64" "live-server-amd64" "server-amd64" "desktop-i386")
-
-# TODO: remove "server-amd64" and "desktop-i386", which no longer exist
+suites=("desktop-amd64" "live-server-amd64")
 
 usage() {
     cat >&2 <<EOM
