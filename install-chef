@@ -1,0 +1,39 @@
+#!/bin/bash
+set -euo pipefail
+
+os="20.04"
+version="21.5.420"
+sha2="cbe91cee30d5d6a63f301c00549070376cb743bc6693768911f826cd68d8f523"
+url="https://packages.chef.io/files/stable/chef-workstation/$version/ubuntu/$os/chef-workstation_$version-1_amd64.deb"
+download_page="https://downloads.chef.io/tools/workstation?os=ubuntu"
+
+run () {
+    echo >&2 "+ $*"
+    "$@"
+}
+
+basename="$(basename "$url")"
+tmpdir=$(run mktemp -d --tmpdir tmp.install-chef.XXXXXXXXXX)
+
+cd "$tmpdir"
+
+run wget -O downloads.html "$download_page"
+if grep "$version" downloads.html >/dev/null; then
+    echo >&2 "Version $version appears to be latest"
+else
+    echo >&2 "Version $version appears to be outdated"
+    echo >&2 "Find the latest here: $download_page"
+    read -r -p "Press enter to continue anyway..."
+fi
+
+echo >&2 "Downloading to $tmpdir"
+run wget "$url"
+run sha256sum -c --strict <<< "$sha2  $basename"
+
+run sudo dpkg -i "$basename"
+
+cd -
+run rm -r "$tmpdir"
+
+echo >&2 "Checking installation"
+run chef -v
