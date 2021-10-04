@@ -46,6 +46,7 @@ trap cleanup EXIT
 
 echo >&2
 colorecho >&2 cyan "Generating transform vectors..."
+echo >&2
 
 run ffmpeg -i "$input" \
     -vf "vidstabdetect=stepsize=32:shakiness=10:accuracy=10:result=$vectors" \
@@ -53,10 +54,13 @@ run ffmpeg -i "$input" \
 
 echo >&2
 colorecho >&2 cyan "Generating output video..."
+echo >&2
 
-ffmpeg -i "$input" -vf "vidstabtransform=input=$vectors:zoom=0:smoothing=10,unsharp=5:5:0.8:3:3:0.4" \
+run ffmpeg -i "$input" \
+    -vf "vidstabtransform=input=$vectors:zoom=0:smoothing=10,unsharp=5:5:0.8:3:3:0.4" \
     -vcodec libx264 -tune film -preset slow -acodec copy "$output"
 
 rm -fv "$vectors"
+trap - EXIT
 echo >&2
 colorecho >&2 cyan "All done!"
