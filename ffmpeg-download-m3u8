@@ -1,0 +1,34 @@
+#!/bin/bash
+set -euo pipefail
+
+usage() {
+    cat >&2 <<EOM
+$(basename "$0") M3U8_URL OUTPUT_MP4
+
+Arguments:
+
+    M3U8_URL    URL or file path to .m3u8 index file.
+    OUTPUT_MP4  Output filename.
+
+For example:
+
+    $(basename "$0") https://example.com/foo.m3u8 out.mp4
+
+EOM
+}
+
+if [ $# -ne 2 ]; then
+    usage
+    exit 1
+fi
+
+if [[ $1 != http* ]] && [ -e "$1" ]; then
+    # allow downloading internet files from .m3u8 files on disk
+    protocol_whitelist="-protocol_whitelist file,http,https,tcp,tls,crypto"
+else
+    protocol_whitelist=""
+fi
+
+set -x
+ffmpeg -hide_banner -loglevel info \
+    $protocol_whitelist -i "$1" -c copy -bsf:a aac_adtstoasc "$2"
