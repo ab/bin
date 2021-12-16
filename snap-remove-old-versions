@@ -1,0 +1,17 @@
+#!/bin/bash
+set -euo pipefail
+
+run() {
+    echo >&2 "+ $*"
+    "$@"
+}
+
+snap list --all \
+    | while read -r snapname ver rev trk pub notes
+do
+    if [[ $notes = *disabled* ]]; then
+        run sudo snap remove "$snapname" --revision="$rev"
+    fi
+done
+
+echo >&2 "done"
