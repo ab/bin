@@ -1,0 +1,33 @@
+#!/bin/bash
+
+set -euo pipefail
+
+run() {
+    echo >&2 "+ $*"
+    "$@"
+}
+
+if [ $# -lt 1 ] || [ $# -gt 2 ]; then
+    cat >&2 <<EOM
+usage: $(basename "$0") INPUT.mkv [OUTPUT.mp4]
+
+Losslessly repackage .mkv container video files to .mp4 container, which makes
+native playback possible on Android.
+
+Under the hood, this will keep the video codec as-is (expected to be H264),
+and keep the audio codec as-is (expected to be AAC).
+EOM
+    exit 1
+fi
+
+input="$1"
+
+if [ $# -ge 2 ]; then
+    output="$2"
+else
+    output="$(dirname "$input")/${input%.???}.mp4"
+fi
+
+run ffmpeg -i "$input" -c:v copy -c:a copy "$output"
+
+echo "Successfully wrote $output"
