@@ -48,6 +48,7 @@ for branch in $(git branch --format='%(refname:short)' --merged); do
     case "$branch" in
         master|main)       continue ;;
         stages/*)          continue ;;
+        env/*)             continue ;;
         "$current_branch") continue ;;
     esac
 
