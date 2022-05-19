@@ -32,9 +32,9 @@ def print_table(fg_colors, bg_colors):
     print()
     print(' ' * 18 + ''.join(f"{str(x) + 'm':<8}" for x in bg_colors))
 
-    for fg in [''] + list(fg_colors):
-        for bold in ['', '1;']:
-            fgb = bold + str(fg)
+    for fg in ['0'] + list(fg_colors):
+        for bold in ['', ';1']:
+            fgb = str(fg) + bold
             print(" %5sm " % fgb, end='')
             for bg in [None] + list(bg_colors):
                 print(test_colors(fg=fgb, bg=bg), end=' ')
@@ -54,7 +54,7 @@ def print_palette():
             print(f"{escape}{col}m      {escape}m ", end='')
         print()
         for col in row:
-            print(f"{escape}{col}m  {i:>2}  {escape}m ", end='')
+            print(f"{escape}{col}m  xX  {escape}m ", end='')
             i += 1
         print()
         for col in row:
@@ -70,4 +70,5 @@ print()
 print_palette()
 
 print()
-print('Print these escapes prefixed with "\\033["')
+print('The format for ANSI escapes is "\\033[" + <numbers> + "m"')
+print('Multiple semicolon-separated directives may be included in <numbers>')
