@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 """
 Print a non-distracting terminal clock useful for public speaking.
@@ -7,61 +7,91 @@ This program outputs elapsed minutes and seconds so you can tell how long
 you've been talking. It's especially good at large terminal font sizes.
 """
 
-VERSION = '0.2.0'
-
 import optparse
-import os
 import sys
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
+
+VERSION = '0.3.0'
+
 
 class Timer(object):
-    def __init__(self, stream=sys.stdout):
+    def __init__(self, stream=sys.stdout, exponential_test: bool = False):
         self.stream = stream
+        self.exponential_test = exponential_test
+        self.counter = 0
 
-    def run(self, interval=1):
-        os.system('clear')
-        self.stream.write('\n')
-        os.system('tput civis')
-
+    def run(self, interval: float = 10):
         try:
             self._loop(interval=interval)
         finally:
-            os.system('tput cnorm')
+            self.show_cursor()
 
     def _loop(self, interval=1):
         start = datetime.now()
         while True:
-            self.stream.write('\r    ')
-            self.stream.write(self.format_delta(datetime.now() - start))
+            self.clear_screen()
+            self.hide_cursor()
+            self.stream.write('\n')
+            self.stream.write('    ')
+
+            dt = datetime.now() - start
+            if self.exponential_test:
+                # fake times are useful for testing this program
+                dt = timedelta(seconds=2 ** self.counter)
+                self.counter += 1
+            self.stream.write(self.format_delta(dt))
+
+            self.stream.write('    ')
             self.stream.flush()
             time.sleep(interval)
 
     def format_delta(self, delta):
-        s = ''
-        if delta.days:
-            s += str(delta.days) + ' '
-            s += 'days ' if delta.days > 1 else 'day '
+        days = delta.days
+        hours, rem = divmod(delta.seconds, 3600)
+        mins, secs = divmod(rem, 60)
 
-        s += "%d:%02d" % ((delta.seconds // 60) % 60,
-                          delta.seconds % 60)
+        if days >= 2:
+            return f"{days:d} days {hours:d}h {mins:02d}m {secs:02d}s"
+        elif days == 1:
+            return f"{days:d} day {hours:d}h {mins:02d}m {secs:02d}s"
+        elif hours > 0:
+            return f"{hours:d}h {mins:02d}m {secs:02d}s"
+        else:
+            return f"{mins:2d}m {secs:02d}s"
 
-        return s
+    def clear_screen(self) -> None:
+        """like clear (1)"""
+        self.stream.write("\x1bc")
+
+    def hide_cursor(self) -> None:
+        """like `tput civis`"""
+        self.stream.write("\x1b[?25l")
+
+    def show_cursor(self) -> None:
+        """like `tput cnorm`"""
+        self.stream.write("\x1b[?25h")
 
 
 def main():
-    p = optparse.OptionParser(usage = '%prog [options]\n' + __doc__.rstrip(),
-                              version = '%prog ' + VERSION)
-    p.add_option('-i', '--interval', dest='interval', default=5,
-                 help='interval between updates')
+    p = optparse.OptionParser(usage='%prog [options]\n' + __doc__.rstrip(),
+                              version='%prog ' + VERSION)
+    p.add_option(
+        '-i', '--interval', dest='interval', default=5, metavar="SECS",
+        help='interval between updates',
+    )
+    p.add_option(
+        '--exp-test', help='exponential timer test', action="store_true",
+    )
     opts, args = p.parse_args()
 
-    t = Timer()
+    t = Timer(exponential_test=opts.exp_test)
 
     try:
         t.run(interval=int(opts.interval))
     except KeyboardInterrupt:
-        print ''
+        print('')
+
 
 if __name__ == '__main__':
     main()
