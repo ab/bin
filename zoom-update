@@ -69,11 +69,14 @@ def dpkg_install(filename: str, sudo: bool = True):
 
 
 def main() -> int:
-    usage = """
-usage: %prog
+    usage = f"""
+%prog [OPTIONS]
 
 Download and install Zoom .deb package updates, as needed.
-"""
+
+Target download directory, set by $ZOOM_DOWNLOAD_DIR:
+    {ZOOM_DOWNLOAD_DIR}
+""".strip()
     p = optparse.OptionParser(usage=usage)
     p.add_option(
         '--no-check-existing',
