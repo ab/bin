@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+import logging
+import optparse
 import os
 import re
 import subprocess
@@ -12,6 +14,9 @@ ZOOM_DEB = "zoom_amd64.deb"
 
 DEFAULT_DOWNLOAD_DIR = os.path.expanduser("~/Downloads/Installers")
 ZOOM_DOWNLOAD_DIR = os.environ.get("ZOOM_DOWNLOAD_DIR", DEFAULT_DOWNLOAD_DIR)
+
+
+logging.basicConfig(level=logging.DEBUG)
 
 
 def get_zoom_http_head_latest_redirect() -> str:
@@ -64,6 +69,21 @@ def dpkg_install(filename: str, sudo: bool = True):
 
 
 def main() -> int:
+    usage = """
+usage: %prog
+
+Download and install Zoom .deb package updates, as needed.
+"""
+    p = optparse.OptionParser(usage=usage)
+    p.add_option(
+        '--no-check-existing',
+        help='skip check of installed version',
+        action='store_false',
+        dest='check_existing',
+        default=True,
+    )
+    opts, args = p.parse_args()
+
     if not os.path.isdir(ZOOM_DOWNLOAD_DIR):
         print("Please set $ZOOM_DOWNLOAD_DIR to an existing directory.")
         return 1
@@ -71,16 +91,19 @@ def main() -> int:
     url = get_zoom_http_head_latest_redirect()
     version = version_from_url(url=url)
 
-    installed_version = dpkg_get_version("zoom")
-    if version == installed_version:
-        print(f"zoom version {version} is already installed")
-        return 0
+    if opts.check_existing:
+        installed_version = dpkg_get_version("zoom")
+        if version == installed_version:
+            print(f"zoom version {version} is already installed")
+            return 0
 
     base, ext = os.path.splitext(ZOOM_DEB)
-    output_file = base + "-" + version + ext
+    output_basename = base + "-" + version + ext
+    output_file = os.path.join(ZOOM_DOWNLOAD_DIR, output_basename)
 
     download_to_file(url=url, filename=output_file)
 
+    print(f"Installing zoom {version}")
     dpkg_install(filename=output_file)
 
 
