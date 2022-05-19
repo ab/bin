@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # coding=utf-8
 
 import os
@@ -9,13 +9,23 @@ import sys
 ALIASES = {
     'fliptable': 'flip',
     'table': 'flip',
+    'box': 'black_button',
+    'check': 'check_button',
+    'cross': 'cross_mark',
+    'x': 'cross_mark',
 }
 
 ALL_EMOJI = {
     'unimpressed': 'ಠ_ಠ',
-    'shrug': '¯\_(ツ)_/¯',
+    'shrug': r'¯\_(ツ)_/¯',
     'flip': '(╯°□°)╯︵ ┻━┻',
     'tm': '™',
+
+    'check_button': '✅',
+    'cross_button': '❎',
+    'black_button': '🔲',
+    'check_mark': '✔️',
+    'cross_mark': '❌',
 
     'cat': '(^._.^)ﾉ',
     'catface': '(^人^)',
@@ -37,6 +47,7 @@ ALL_EMOJI = {
     'facepalm': '(>_<)',
 }
 
+
 def has_clipboard_capability():
     host_os = platform.system()
     if host_os == 'Darwin':
@@ -50,6 +61,7 @@ def has_clipboard_capability():
         sys.stderr.write('warning: unknown OS %r\n' % host_os)
         return False
 
+
 def clipboard_copy(text):
     host_os = platform.system()
     if host_os == 'Darwin':
@@ -60,18 +72,22 @@ def clipboard_copy(text):
         sys.stderr.write('warning: unknown OS %r\n' % host_os)
         return False
 
+
 def clipboard_copy_mac(text):
     p = subprocess.Popen(['pbcopy'], stdin=subprocess.PIPE)
-    return p.communicate(text)
+    return p.communicate(text.encode('utf-8'))
+
 
 def clipboard_copy_linux(text):
     p = subprocess.Popen(['xclip', '-silent', '-selection', 'clipboard'],
                          stdin=subprocess.PIPE)
-    return p.communicate(text)
+    return p.communicate(text.encode('utf-8'))
+
 
 def emoji_for(word):
     word = ALIASES.get(word, word)
     return ALL_EMOJI[word]
+
 
 def main(args):
     if len(args) >= 1:
@@ -81,14 +97,15 @@ def main(args):
         except KeyError:
             sys.stderr.write('Unknown emoji: %r\n' % word)
             return 1
-        print emoji
+        print(emoji)
         if USE_CLIPBOARD:
             clipboard_copy(emoji)
             sys.stderr.write('(copied to clipboard)\n')
     else:
-        for name, emoji in ALL_EMOJI.iteritems():
-            print name + ':', emoji
+        for name, emoji in ALL_EMOJI.items():
+            print(name + ':', emoji)
     return 0
+
 
 USE_CLIPBOARD = False
 if 'CLIPBOARD' in os.environ:
@@ -100,4 +117,3 @@ else:
 
 if __name__ == '__main__':
     sys.exit(main(sys.argv[1:]))
-
