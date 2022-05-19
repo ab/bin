@@ -1,38 +1,88 @@
-#!/bin/bash
-set -euo pipefail
+#!/usr/bin/env python3
+import os
+import re
+import subprocess
+import sys
 
-ZOOM_DOWNLOAD_DIR="${ZOOM_DOWNLOAD_DIR-"$HOME/Downloads/Installers"}"
+import requests
 
-file="zoom_amd64.deb"
 
-tmpdir="$(mktemp -d)"
-# shellcheck disable=SC2064
-trap "rm -rfv $tmpdir" EXIT
+ZOOM_LATEST_URL = "https://zoom.us/client/latest/zoom_amd64.deb"
+ZOOM_DEB = "zoom_amd64.deb"
 
-cd "$tmpdir"
-wget -nc "https://zoom.us/client/latest/$file"
+DEFAULT_DOWNLOAD_DIR = os.path.expanduser("~/Downloads/Installers")
+ZOOM_DOWNLOAD_DIR = os.environ.get("ZOOM_DOWNLOAD_DIR", DEFAULT_DOWNLOAD_DIR)
 
-dpkg -e "$file"
 
-version="$(grep ^Version DEBIAN/control | cut -d ' ' -f 2)"
+def get_zoom_http_head_latest_redirect() -> str:
+    resp = requests.head(ZOOM_LATEST_URL)
+    resp.raise_for_status()
+    assert resp.status_code == 302
 
-if [ ! -d "$ZOOM_DOWNLOAD_DIR" ]; then
-    echo "Please set \$ZOOM_DOWNLOAD_DIR to something that exists"
-fi
+    if not __debug__:
+        raise ValueError("Expected __debug__ to be True so assert works")
 
-cd "$ZOOM_DOWNLOAD_DIR"
+    return resp.headers["location"]
 
-target="zoom_amd64-$version.deb"
 
-if [ -e "$target" ]; then
-    echo "Target $target already exists. Nothing to do."
-    exit
-fi
+def version_from_url(url: str) -> str:
+    """
+    expected format: https://cdn.zoom.us/prod/5.10.4.2845/zoom_amd64.deb
+    """
 
-mv -v "$tmpdir/$file" "$target"
+    parts = url.split("/")
+    assert parts[-1] == ZOOM_DEB
 
-rm -r "$tmpdir"
-trap - EXIT
+    version = parts[-2]
+    assert re.search("^[0-9.]+$", version)
 
-set -x
-sudo dpkg -i "$target"
+    return version
+
+
+def download_to_file(url: str, filename: str) -> requests.Response:
+    print(f"Downloading {url!r} to {filename!r}")
+    with requests.get(url, stream=True) as resp:
+        resp.raise_for_status()
+        with open(filename, "wb") as f:
+            for chunk in resp.iter_content(chunk_size=8192):
+                f.write(chunk)
+        return resp
+
+
+def dpkg_get_version(package: str) -> str:
+    return subprocess.check_output(
+        ["dpkg-query", "-Wf", "${Version}", package], text=True
+    )
+
+
+def dpkg_install(filename: str, sudo: bool = True):
+    cmd = ["dpkg", "-i", filename]
+    if sudo:
+        cmd = ["sudo"] + cmd
+    print("+ " + " ".join(cmd))
+    return subprocess.check_call(cmd)
+
+
+def main() -> int:
+    if not os.path.isdir(ZOOM_DOWNLOAD_DIR):
+        print("Please set $ZOOM_DOWNLOAD_DIR to an existing directory.")
+        return 1
+
+    url = get_zoom_http_head_latest_redirect()
+    version = version_from_url(url=url)
+
+    installed_version = dpkg_get_version("zoom")
+    if version == installed_version:
+        print(f"zoom version {version} is already installed")
+        return 0
+
+    base, ext = os.path.splitext(ZOOM_DEB)
+    output_file = base + "-" + version + ext
+
+    download_to_file(url=url, filename=output_file)
+
+    dpkg_install(filename=output_file)
+
+
+if __name__ == "__main__":
+    sys.exit(main())
