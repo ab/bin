@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import optparse
 import sys
@@ -7,12 +7,13 @@ from datetime import datetime
 
 VERSION = '1.2'
 
+
 def main():
     usage = '''%prog [options] UNIX_STAMP...
 
 Convert each UNIX_STAMP into a date string according to strftime FMT.
 '''.rstrip()
-    p = optparse.OptionParser(usage=usage, version = '%prog ' + VERSION)
+    p = optparse.OptionParser(usage=usage, version='%prog ' + VERSION)
     p.add_option('-u', '--utc', dest='local', action='store_false',
                  help='print time in UTC', default=True)
 
@@ -22,7 +23,8 @@ Convert each UNIX_STAMP into a date string according to strftime FMT.
                  action='store_true')
     p.add_option('-i', '--integer', help='print integer times',
                  dest='integer', action='store_true')
-    p.add_option('-l', '--ldap', help='treat stamp as LDAP/AD timestamp',
+    p.add_option('-l', '--ldap',
+                 help='treat stamp as LDAP/AD timestamp (1601 epoch)',
                  dest='ldap_stamp', action='store_true')
 
     opts, args = p.parse_args()
@@ -40,17 +42,19 @@ Convert each UNIX_STAMP into a date string according to strftime FMT.
 
     return 0
 
-def ldap_timestamp_to_unix_timestamp(stamp):
+
+def ldap_timestamp_to_unix_timestamp(stamp: int) -> float:
     """
     Convert LDAP / Active Directory timestamp to UNIX timestamp.
 
     LDAP stores times as integer 100-nanosecond intervals since Jan 1, 1601.
-    UNIX timestamps are stored as seconds since Jan 1, 1970.
+    UNIX timestamps are stored as float seconds since Jan 1, 1970.
     """
     unix_epoch_since_1601 = 11644473600
     return stamp/10000000.0 - unix_epoch_since_1601
 
-def print_stamp_as_string(stamp_str, opts):
+
+def print_stamp_as_string(stamp_str: str, opts: optparse.Values) -> None:
     if opts.ldap_stamp:
         stamp = ldap_timestamp_to_unix_timestamp(int(stamp_str))
     else:
@@ -84,12 +88,14 @@ def print_stamp_as_string(stamp_str, opts):
         sys.stdout.write(' ' + tzname)
     sys.stdout.write('\n')
 
-def print_current_timestamp(integer=False):
+
+def print_current_timestamp(integer: bool = False):
     if integer:
         fmt = '%s'
     else:
         fmt = '%s.%f'
     sys.stdout.write(datetime.now().strftime(fmt) + '\n')
+
 
 if __name__ == '__main__':
     sys.exit(main())
