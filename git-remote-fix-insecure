@@ -1,0 +1,58 @@
+#!/bin/bash
+
+set -euo pipefail
+
+run() {
+    echo >&2 "+ $*"
+    "$@"
+}
+
+colorecho() {
+    local fg bold
+    bold=1
+
+    case "$1" in
+        black|gray|grey)       fg=30 ;;
+        red)                   fg=31 ;;
+        green)                 fg=32 ;;
+        yellow)                fg=33 ;;
+        blue)                  fg=34 ;;
+        magenta|purple|violet) fg=35 ;;
+        cyan)                  fg=36 ;;
+        white)                 fg=37 ;;
+        *)
+            usage
+            echo >&2 "Unknown color: $1"
+            exit 1
+            ;;
+    esac
+
+    shift
+
+    if [ -t 1 ]; then
+        echo -ne "\033[$bold;${fg}m"
+    fi
+
+    echo "$@"
+
+    if [ -t 1 ]; then
+        echo -ne "\033[m"
+    fi
+}
+
+
+for remote in $(run git remote); do
+    colorecho blue "Remote: $remote in $PWD"
+    url="$(run git remote get-url "$remote")"
+
+    if [[ $url == git://* ]]; then
+        colorecho yellow "Found insecure git remote"
+        new_url="${url/git:/https:}"
+
+        colorecho yellow "Old URL: $url"
+        colorecho yellow "New URL: $new_url"
+        run git remote set-url "$remote" "$new_url"
+    fi
+done
+
+colorecho blue "OK"

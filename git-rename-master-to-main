@@ -1,0 +1,14 @@
+#!/bin/bash
+set -euo pipefail
+
+run() {
+    echo >&2 "+ $*"
+    "$@"
+}
+
+
+run git branch -m master main
+run git push -u origin main
+run git symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/main
+
+echo "Optional, now run: git push origin --delete master"
