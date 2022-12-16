@@ -1,8 +1,9 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 import os
 import sys
 
 # couldn't figure out how to make fileinput not be line-oriented (pity)
+
 
 # not quite the same as ruby's chomp ("hello\n\r" => "hello")
 def chomp(handle, chunk_size=8092):
@@ -14,9 +15,11 @@ def chomp(handle, chunk_size=8092):
 
     sys.stdout.write(chunk.rstrip('\r\n'))
 
+
 def chomp_handles(handles):
     for handle in handles:
         chomp(handle)
+
 
 def run(filenames):
     handles = []
@@ -27,6 +30,7 @@ def run(filenames):
             handles.append(open(name, 'r'))
     chomp_handles(handles)
 
+
 if __name__ == '__main__':
     filenames = sys.argv[1:]
     if not filenames:
@@ -36,8 +40,8 @@ if __name__ == '__main__':
     try:
         run(filenames)
     except KeyboardInterrupt:
-        print ''
+        print()
         sys.exit(130)
-    except IOError, e:
+    except IOError as e:
         sys.stderr.write("%s: %s: %s\n" % (basename, e.filename, e.strerror))
         sys.exit(1)
