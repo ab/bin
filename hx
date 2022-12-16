@@ -1,0 +1,1 @@
+/home/andy/code/pkg/helix-22.12-x86_64.AppImage
