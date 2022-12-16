@@ -9,9 +9,30 @@ VERSION = '1.2'
 
 
 def main():
-    usage = '''%prog [options] UNIX_STAMP...
+    usage = '''%prog [options] [UNIX_STAMP...]
 
 Convert each UNIX_STAMP into a date string according to strftime FMT.
+
+With no arguments, print the current time as a UNIX timestamp.
+
+Examples:
+
+    Print current timestamp, as float
+        $ timestamp
+        1671221574.360421
+
+    Print current timestamp, as integer
+        $ timestamp -i
+        1671221576
+
+    Convert timestamp to text, local time
+        $ timestamp 1671221575
+        2022-12-16 15:12:55 EST
+
+    Convert timestamp to text, UTC
+        $ timestamp -u 1671221575
+        2022-12-16 20:12:55 UTC
+
 '''.rstrip()
     p = optparse.OptionParser(usage=usage, version='%prog ' + VERSION)
     p.add_option('-u', '--utc', dest='local', action='store_false',
@@ -29,13 +50,9 @@ Convert each UNIX_STAMP into a date string according to strftime FMT.
 
     opts, args = p.parse_args()
 
-    if opts.stamp:
+    if opts.stamp or len(args) == 0:
         print_current_timestamp(integer=opts.integer)
         return 0
-
-    if not args:
-        p.print_help()
-        return 1
 
     for stamp in args:
         print_stamp_as_string(stamp, opts)
