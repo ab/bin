@@ -1,0 +1,60 @@
+#!/bin/bash
+set -euo pipefail
+
+usage() {
+  cat >&2 <<EOM
+usage: $(basename "$0") [-n] DIR
+
+List .mkv and .mp4 files in DIR and remove any .mkv files that are duplicated
+in .mp4 format. (i.e. Remove videos that have been remuxed.)
+
+Options:
+    -h, --help
+    -f, --force         Don't ask for confirmation
+    -n, --dry-run       Dry run (echo only)
+EOM
+}
+
+dry_run=
+force=
+
+while [ $# -gt 1 ] && [[ $1 == -* ]]; do
+    case "$1" in
+        -h|--help)
+            usage
+            exit
+            ;;
+        -n|--dry-run)
+            dry_run=1
+            ;;
+        -f|--force)
+            force=1
+            ;;
+    esac
+    shift
+done
+
+if [ $# -ne 1 ]; then
+    usage
+    exit 1
+fi
+
+dir="$1"
+
+echo >&2 "Listing $dir/*.mkv"
+
+for file in "$dir"/*.mkv; do
+    base=$(basename "$file" .mkv)
+    if [ -e "$dir/$base.mp4" ]; then
+        echo "Dups: $base.mp4 | $base.mkv"
+        if [ -n "$dry_run" ]; then
+            echo rm -iv "$file"
+        else
+            if [ -n "$force" ]; then
+                rm -v "$file"
+            else
+                rm -iv "$file"
+            fi
+        fi
+    fi
+done
