@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 """
 Prompt the user for a password and print the result on stdout.
@@ -33,4 +33,3 @@ except KeyboardInterrupt:
 out_stream.write(pw)
 if opts.newline:
     out_stream.write('\n')
-

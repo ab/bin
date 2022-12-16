@@ -1,7 +1,8 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 import subprocess
 import sys
 import traceback
+
 
 def usage():
     sys.stderr.write('''usage: not COMMAND...
@@ -25,6 +26,7 @@ Examples:
     0
 
 ''')
+
 
 def main():
     if len(sys.argv) <= 1:
@@ -51,7 +53,8 @@ def main():
         # command exited with nonzero status
         return 0
 
-    assert False, 'notreached'
+    raise Exception('notreached')
+
 
 if __name__ == '__main__':
     try:

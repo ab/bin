@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 """
 usage: echoserver [HOST [PORT]]
@@ -8,26 +8,26 @@ TODO: properly support IPv4 hostnames
 
 import sys
 import socket
-import SocketServer
+import socketserver
 
-class EchoServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
+class EchoServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
     pass
 
 class EchoServerV6(EchoServer):
     address_family = socket.AF_INET6
 
-class EchoRequestHandler(SocketServer.StreamRequestHandler):
+class EchoRequestHandler(socketserver.StreamRequestHandler):
     """
     Handle one connection from a client.
     """
     def handle(self):
-        print "connection from %s" % self.client_address[0]
+        print("connection from %s" % self.client_address[0])
         while True:
             line = self.rfile.readline()
             if not line: break
-            print "%s wrote: %r" % (self.client_address[0], line.rstrip())
+            print("%s wrote: %r" % (self.client_address[0], line.rstrip()))
             self.wfile.write(line)
-        print "%s disconnected" % self.client_address[0]
+        print("%s disconnected" % self.client_address[0])
 
 def serve(host, port):
     # TODO: we should choose the IPv4 server class if we're given an IPv4
@@ -35,20 +35,20 @@ def serve(host, port):
     server = EchoServerV6((host, port), EchoRequestHandler)
 
     if len(server.server_address) == 2:
-        print "server listening on %s:%s" % server.server_address
+        print("server listening on %s:%s" % server.server_address)
     else:
-        print "server listening on [%s]:%s" % server.server_address[0:2]
+        print("server listening on [%s]:%s" % server.server_address[0:2])
         if server.socket.getsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY):
-            print '(IPv6 only)'
+            print('(IPv6 only)')
         else:
-            print '(dual stack IPv6 and IPv4)'
+            print('(dual stack IPv6 and IPv4)')
 
     try:
         server.serve_forever()
     except KeyboardInterrupt:
         pass
 
-    print "shutting down; waiting for connenctions to close..."
+    print("shutting down; waiting for connenctions to close...")
     server.shutdown()
 
 if __name__ == '__main__':
@@ -61,4 +61,4 @@ if __name__ == '__main__':
     try:
         serve(host, port)
     except KeyboardInterrupt:
-        print ''
+        print('')

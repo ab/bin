@@ -1,12 +1,12 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # Print a bouncing O. Pretty much the most pointless script ever.
 
 import sys
 import time
-from subprocess import check_output
+import os
 
 
-width = int(check_output(['tput', 'cols']))
+width = os.get_terminal_size().columns
 
 def display_line(index, width, stream=None):
     if index >= width:

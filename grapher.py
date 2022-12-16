@@ -1,16 +1,19 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 import curses
 import optparse
-import re
+import os
 import sys
-from subprocess import call, Popen, PIPE
+from subprocess import call
 
 VERSION = '0.1'
 
 def get_term_size():
-    p = Popen(['tput', '-S'], stdin=PIPE, stdout=PIPE)
-    out = p.communicate('lines\ncols\n')[0]
-    return map(int, out.strip().split('\n'))
+    """
+    Return the current terminal size as a tuple:
+        (lines, columns)
+    """
+    size = os.get_terminal_size()
+    return (size.lines, size.columns)
 
 def graph(values, width=None, height=None, char='|'):
     if width is None or height is None:
@@ -34,7 +37,7 @@ def graph(values, width=None, height=None, char='|'):
             display[r][c] = char
     
     for row in display:
-        print ''.join(row)
+        print(''.join(row))
 
 def graph_loop(*args, **kwargs):
     call('clear')
@@ -127,7 +130,7 @@ if __name__ == '__main__':
         try:
             curses.wrapper(curses_graph, f, strict_input=options.strict_input)
         except KeyboardInterrupt:
-            print '^C',
+            print('^C',)
     else:
         values = []
         for line in f:

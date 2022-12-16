@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 import sys
 from datetime import datetime
 
@@ -41,4 +41,4 @@ while True:
     data.append((date.day, hours, processed_input))
 
 for row in data:
-    print '%s %f "%s"' % row
+    print('%s %f "%s"' % row)

@@ -1,12 +1,12 @@
-#!/usr/bin/env python
-from __future__ import print_function
-
+#!/usr/bin/env python3
 import optparse
 import sys
 import time
 
+
 class TimeError(Exception):
     pass
+
 
 def round_up(n, bucket):
     """
@@ -54,6 +54,7 @@ def sleep_until(timestamp, round_bucket=None, verbose=True):
 
     time.sleep(duration)
 
+
 def main():
     usage = '''%prog [options] UNIX_STAMP
 
@@ -89,6 +90,7 @@ Sleep until UNIX_STAMP.
         return 130
 
     return 0
+
 
 if __name__ == '__main__':
     sys.exit(main())

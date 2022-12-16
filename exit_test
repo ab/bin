@@ -1,14 +1,14 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 import optparse
 import os
 import sys
 
 def signal_exit(signal):
-    print 'Sending ourself signal', signal
+    print('Sending ourself signal', signal)
     os.kill(os.getpid(), signal)
 
 def system_exit(status):
-    print 'Exiting with status', status
+    print('Exiting with status', status)
     sys.exit(status)
 
 def main():

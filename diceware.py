@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import math
 import random
@@ -97,4 +97,4 @@ if __name__ == '__main__':
 
     sys.stderr.write("Entropy: ~%.1f bits\n" % round(entropy, 1))
 
-    print sep.join(pair[0] for pair in words)
+    print(sep.join(pair[0] for pair in words))

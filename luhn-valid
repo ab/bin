@@ -1,7 +1,8 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 import re
 import sys
 from getpass import getpass
+
 
 def luhn_checksum(card_number):
     def digits_of(n):
@@ -15,8 +16,10 @@ def luhn_checksum(card_number):
         checksum += sum(digits_of(d*2))
     return checksum % 10
 
+
 def is_luhn_valid(card_number):
     return luhn_checksum(card_number) == 0
+
 
 def redacted(card_number):
     if len(card_number) < 10:
@@ -27,17 +30,17 @@ def redacted(card_number):
 
     return first6 + '*' * len(middle) + last4
 
+
 if __name__ == '__main__':
     orig_number = getpass('number: ')
-    number = re.sub('\D+', '', orig_number)
+    number = re.sub(r'\D+', '', orig_number)
     if not number:
-        print 'no number provided'
+        print('no number provided')
         sys.exit(2)
 
-    print redacted(number),
+    print(redacted(number),)
     if is_luhn_valid(number):
-        print 'is luhn valid'
+        print('is luhn valid')
     else:
-        print 'is NOT luhn valid'
+        print('is NOT luhn valid')
         sys.exit(1)
-

@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """
 usage: total [FILE...]
 
@@ -8,8 +8,10 @@ Sum numbers given on stdin or in files and print the total.
 import fileinput
 import sys
 
+
 def usage():
-    print __doc__.strip()
+    print(__doc__.strip())
+
 
 if sys.stdin.isatty() and len(sys.argv) < 2:
     usage()
@@ -29,4 +31,4 @@ for line in fileinput.input():
 
     total += n
 
-print total
+print(total)
