@@ -45,7 +45,7 @@ echo >&2 "Listing $dir/*.mkv"
 
 for file in "$dir"/*.mkv; do
     base=$(basename "$file" .mkv)
-    if [ -e "$dir/$base.mp4" ]; then
+    if [ -s "$dir/$base.mp4" ]; then
         echo "Dups: $base.mp4 | $base.mkv"
         if [ -n "$dry_run" ]; then
             echo rm -iv "$file"
