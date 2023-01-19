@@ -1,5 +1,5 @@
 #!/bin/bash
-set -eu
+set -euo pipefail
 
 VERSION="0.1"
 
@@ -9,6 +9,7 @@ usage() {
     basename="$(basename "$0")"
     cat >&2 <<EOM
 usage: $basename create <bundle-directory> <GPG-recipient>
+   or: $basename info
    or: $basename pull
    or: $basename push
    or: $basename pull-local
@@ -31,9 +32,35 @@ EOM
 }
 
 read_config() {
-    cd "$(run git rev-parse --show-toplevel)"
+    repo_root="$(run git rev-parse --show-toplevel)"
+    cd "$repo_root"
+    SEE_OTHER="$(run git config cryptbundle.see-other-dir || true)"
+
+    if [ -n "$SEE_OTHER" ]; then
+        echo >&2 "config redirects to $SEE_OTHER"
+        echo >&2 "+ cd $SEE_OTHER"
+        cd "$SEE_OTHER"
+    fi
+
     BUNDLE_DIRECTORY="$(run git config cryptbundle.directory)"
     GPG_RECIPIENT="$(run git config cryptbundle.gpg-recipient)"
+}
+
+cmd_info() {
+    cat <<EOM
+
+info -- git-crypt-bundle config read from \`git config\`:
+PWD: $PWD
+
+    BUNDLE_DIRECTORY=$BUNDLE_DIRECTORY
+    GPG_RECIPIENT=$GPG_RECIPIENT
+    GCB_REMOTE=$GCB_REMOTE"
+    GCB_BRANCH=$GCB_BRANCH
+    GCB_LOCAL_BRANCH=$GCB_LOCAL_BRANCH
+    GCB_BASENAME=$GCB_BASENAME
+    GCB_FILE=$GCB_FILE
+    GCB_PASS_FILE=$GCB_PASS_FILE
+EOM
 }
 
 cmd_create() {
@@ -135,6 +162,7 @@ case "$1" in
         shift
         cmd_create "$@"
         ;;
+    info) read_config; cmd_info ;;
     pull) read_config; cmd_pull ;;
     push) read_config; cmd_push ;;
     pull-local) read_config; cmd_pull_local ;;
