@@ -21,6 +21,11 @@ Hashes of missing files will be silently skipped (using --ignore-missing).
 
 This is especially useful for verifying the SHA256SUMS, SHA256SUMS.gpg files
 that accompany software downloads.
+
+For example:
+
+    csum SHA256SUMS
+
 EOM
 }
 
@@ -28,6 +33,12 @@ if [ $# -eq 0 ]; then
     usage
     exit 1
 fi
+
+if [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
+    usage
+    exit
+fi
+
 
 colorecho() {
     color="$1"
@@ -73,9 +84,27 @@ warn() {
 delayerr=
 
 for file in "$@"; do
-    first_hash="$(head -1 "$file" | cut -f 1 -d' ')"
+
+    if [ -r "$file" ] && [ ! -s "$file" ]; then
+        errx 2 "'$file' is empty"
+    fi
+
+    # Read file until first space character
+    # This should be a hexadecimal checksum
+    read -r -d ' ' first_hash < "$file" && ret=$? || ret=$?
     hashlen=${#first_hash}
 
+    if [ "$ret" -ne 0 ]; then
+        errx "$ret" "read '$file' exited with error status $ret"
+    fi
+
+    # Bail out if we see chars other than hexadecimal
+    if ! [[ $first_hash =~ ^[a-fA-F0-9]+$ ]]; then
+        colorecho red "Are you sure this is a checksum file?"
+        errx 3 "'$file' has unexpected chars where hex checksum should be"
+    fi
+
+    # Guess hash algorithm based on length of digest
     case $hashlen in
         32)  cmd=md5sum ;;
         40)  cmd=sha1sum ;;
@@ -84,7 +113,8 @@ for file in "$@"; do
         98)  cmd=sha384sum ;;
         128) cmd=sha512sum ;;
         *)
-            errx 3 "'$file' has unexpected hash length: $hashlen"
+            colorecho red "Are you sure this is a checksum file?"
+            errx 3 "'$file' has unexpected hash length $hashlen"
             ;;
     esac
 
