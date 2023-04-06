@@ -20,7 +20,7 @@ Options:
     -d          Download desktop releases only
     -s          Download server releases only
     -w          Use wget as downloader (default)
-    -z          Use zsync as downloader
+    -z          Use zsync as downloader (mirror can't be https)
 
 Default mirror: $MIRROR
 
@@ -90,38 +90,50 @@ fi
 echo >&2 "Downloading Ubuntu $version"
 echo >&2 "Mirror: $MIRROR"
 
-declare -a files urls
+declare -a files urls isofiles isourls
+isofiles=()
 files=(
     SHA256SUMS{,.gpg}
 )
 
 for suite in "${suites[@]}"; do
-    files+=("ubuntu-${version}-${suite}.iso")
+    isofiles+=("ubuntu-${version}-${suite}.iso")
 done
 
 urls=()
+isourls=()
 
 echo >&2 "Files to download:"
 for file in "${files[@]}"; do
     echo >&2 "  $file"
     urls+=("$MIRROR/$major/$file")
 done
+for file in "${isofiles[@]}"; do
+    echo >&2 "  $file"
+    isourls+=("$MIRROR/$major/$file")
+done
 
 case "$cmd" in
     wget)
-        run wget -c "${urls[@]}"
+        # Checksum files may change, so check timestamp and don't ever
+        # resume downloads
+        run wget -N "${urls[@]}"
+
+        # ISO files should not change, so it's safe to continue downloads
+        run wget -c "${isourls[@]}"
         ;;
     zsync)
-        for url in "${urls[@]}"; do
-            if [[ $url == *.iso ]]; then
-                if [[ $url == https://* ]]; then
-                    echo >&2 "zsync does not support https"
-                    return 1
-                fi
-                run zsync "$url.zsync"
-            else
-                run wget -N "$url"
+        # non-iso files don't have .zsync metadata
+        run wget -N "${urls[@]}"
+
+        for url in "${isourls[@]}"; do
+            if [[ $url == https://* ]]; then
+                echo >&2 "WARN: replacing HTTPS mirror with HTTP for zsync"
+                echo >&2 "Be sure to check your checksums!"
+
+                url="${url/https:/http:}"
             fi
+            run zsync "$url.zsync"
         done
         ;;
     *)
