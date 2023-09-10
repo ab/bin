@@ -1,0 +1,76 @@
+#!/bin/bash
+set -euo pipefail
+
+BASENAME="$(basename "$0")"
+
+usage() {
+    cat >&2 <<EOM
+usage: $BASENAME
+
+Determine whether the screen is locked, according to loginctl from system.
+
+We consider the screen to be locked if either:
+- There are no sessions.
+- All sessions have LockedHint=yes.
+
+If any sessions have LockedHint=no, then we say the screen is unlocked.
+
+The answer will be written to stdout for use in scripts.
+
+For example:
+
+    $ $BASENAME
+    locked
+
+    $ $BASENAME
+    unlocked
+
+    $ $BASENAME
+    error
+    # exit status 1
+
+EOM
+}
+
+detect_locked_status() {
+    for session_id in $(loginctl list-sessions --no-legend | cut -d' ' -f1); do
+        lockedhint="$(loginctl show-session "$session_id" --property=LockedHint)"
+
+        case "$lockedhint" in
+            "LockedHint=no")
+                # session is unlocked / return early
+                echo "unlocked"
+                return
+                ;;
+            "LockedHint=yes")
+                # no-op / session is locked
+                ;;
+            *)
+                echo >&2 "$BASENAME: unexpected LockedHint value: $lockedhint"
+                return 1
+                ;;
+        esac
+    done
+
+    # fallthrough: zero sessions exist or all sessions locked
+    echo "locked"
+}
+
+if [ $# -ge 1 ]; then
+    case "$1" in
+        -h|--help)
+            usage
+            exit
+            ;;
+        *)
+            usage
+            exit 1
+            ;;
+    esac
+fi
+
+trap 'echo error' EXIT
+
+detect_locked_status
+
+trap - EXIT
