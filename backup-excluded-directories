@@ -3,29 +3,81 @@ set -euo pipefail
 
 usage() {
     cat >&2 <<EOM
-usage: $0 DIR [TAG_FILE]
+usage: $0 [OPTIONS...] DIR
 
 Find and list subdirectories under DIR that should be excluded from backup
 because they contain TAG_FILE (default .ab-backup-exclude).
+
+Options:
+
+    -h, --help              Print this help message
+    -c, --print-contents    Recursively print all paths in excluded directories
+    --relative              Print paths sliced relative to DIR
+    -t, --tag-file TAG_FILE Use TAG_FILE as name of backup exclude tag file
+    -x, --one-file-system   Do not cross filesystem boundaries
+
 EOM
 }
 
-if [ $# -lt 1 ]; then
+relative=
+one_file_system=
+print_contents=
+tag_file=".ab-backup-exclude"
+
+while [ $# -ge 1 ] && [[ $1 == -* ]]; do
+    case "$1" in
+        -h|--help)
+            usage
+            exit
+            ;;
+        -c|--print-contents)
+            print_contents=1
+            ;;
+        --relative)
+            relative=1
+            ;;
+        -t|--tag-file)
+            tag_file="$2"
+            shift
+            ;;
+        -x|--one-file-system)
+            one_file_system=1
+            ;;
+        *)
+            usage
+            echo >&2 "Invalid option: $1"
+            exit 1
+            ;;
+    esac
+    shift
+done
+
+if [ $# -ne 1 ]; then
     usage
     exit 1
 fi
 
-relative="${relative-}"
-
 dir=$1
-tag_file="${2-.ab-backup-exclude}"
 
 if [ -n "$relative" ]; then
     cd "$dir"
     dir=.
 fi
 
-find "$dir" -type f -name "$tag_file" | while read -r file; do
+if [ -n "$one_file_system" ]; then
+    opts=(-xdev)
+else
+    opts=()
+fi
+
+echo >&2 "Searching $dir for backup exclude tag file $tag_file"
+
+find "$dir" "${opts[@]}" -type f -name "$tag_file" | while read -r file; do
+    if [ -n "$print_contents" ]; then
+        parent=$(dirname "$file")
+        find "$parent" "${opts[@]}"
+        continue
+    fi
     if [ -n "$relative" ]; then
         file="${file:2}"
     fi

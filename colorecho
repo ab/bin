@@ -46,6 +46,10 @@ case "$1" in
     magenta|purple|violet) fg=35 ;;
     cyan)                  fg=36 ;;
     white)                 fg=37 ;;
+    -h|--help)
+        usage
+        exit
+        ;;
     *)
         usage
         echo >&2 "Unknown color: $1"
