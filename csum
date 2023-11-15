@@ -120,12 +120,14 @@ for file in "$@"; do
 
     if [ -r "$file.sig" ]; then
         run gpg --verify "$file.sig" "$file"
+    elif [ -r "$file.asc" ]; then
+        run gpg --verify "$file.asc" "$file"
     elif [ -r "$file.gpg" ]; then
         run gpg --verify "$file.gpg" "$file"
     elif [ -r "$file.sign" ]; then
         run gpg --verify "$file.sign" "$file"
     else
-        warn "Warning: no signature found at $file.{gpg,sig,sign}"
+        warn "Warning: no signature found at $file.{asc,gpg,sig,sign}"
         delayerr=5
     fi
 
