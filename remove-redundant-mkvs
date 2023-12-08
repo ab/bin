@@ -18,7 +18,7 @@ EOM
 dry_run=
 force=
 
-while [ $# -gt 1 ] && [[ $1 == -* ]]; do
+while [ $# -ge 1 ] && [[ $1 == -* ]]; do
     case "$1" in
         -h|--help)
             usage
@@ -45,7 +45,12 @@ echo >&2 "Listing $dir/*.mkv"
 
 for file in "$dir"/*.mkv; do
     base=$(basename "$file" .mkv)
-    if [ -s "$dir/$base.mp4" ]; then
+    if [ -e "$dir/$base.mp4" ]; then
+        if [ ! -s "$dir/$base.mp4" ]; then
+            echo >&2 "WARNING: skipping empty file '$base.mp4'"
+            continue
+        fi
+
         echo "Dups: $base.mp4 | $base.mkv"
         if [ -n "$dry_run" ]; then
             echo rm -iv "$file"
