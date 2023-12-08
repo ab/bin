@@ -1,5 +1,5 @@
 #!/bin/bash
-set -eu
+set -euo pipefail
 
 usage() {
     cat >&2 <<EOM
@@ -23,6 +23,7 @@ Options:
     -f, --force         Overwrite existing output files
     -e, --ext EXT       Use EXT as the output file extension (and image format)
     -o, --out-dir DIR   Write output files to DIR
+    --mtime             Set mtime of output files to match input
 
 Examples:
 
@@ -53,6 +54,7 @@ opts=()
 force=
 out_dir=
 out_ext=
+mtime=
 
 while [ $# -gt 0 ] && [[ $1 == -* ]]; do
     case "$1" in
@@ -78,6 +80,9 @@ while [ $# -gt 0 ] && [[ $1 == -* ]]; do
         -o|--out-directory)
             out_dir="$2"
             shift
+            ;;
+        --mtime)
+            mtime=1
             ;;
         *)
             usage
@@ -145,3 +150,7 @@ if [ -z "$force" ] && [ -e "$output" ]; then
 fi
 
 run convert "${opts[@]}" "$input" "$output"
+
+if [ -n "$mtime" ]; then
+    touch --no-create --reference "$input" "$output"
+fi
