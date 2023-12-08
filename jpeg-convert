@@ -3,11 +3,15 @@ set -eu
 
 usage() {
     cat >&2 <<EOM
-usage: $(basename "$0") [options] FILE.JPG [OUTPUT]
+usage: $(basename "$0") [options] FILE [OUTPUT]
 
-If neither --out-dir directory nor OUTPUT file is given, ensure that input ends
-with .JPG, and write output to [basename].jpg. This only works on case-
-sensitive file systems.
+Batch convert image files, with various options.
+
+To choose the output filename, you must either specify the OUTPUT file or the
+output extension with -e/--ext.
+
+The output extension will also control the output image format used, if you
+want to convert from one format to another.
 
 See also: jhead(1), convert(1), ImageMagick(1)
 
@@ -17,18 +21,25 @@ Options:
     -q, --quality NUM   Use JPEG quality level NUM
     -r, --resize RES    Resize image to WxH resolution
     -f, --force         Overwrite existing output files
+    -e, --ext EXT       Use EXT as the output file extension (and image format)
     -o, --out-dir DIR   Write output files to DIR
 
 Examples:
 
     # Convert input.JPG quality and resolution, save as output.jpg
-    jpeg-convert -q 90 -r 640x480 input.JPG
+    jpeg-convert -q 90 -r 640x480 -e jpg input.JPG
 
     # Convert a whole directory of files in parallel
-    parallel jpeg-convert -q 90 -- *.JPG
+    parallel jpeg-convert -q 90 -e jpg -- *.JPG
 
     # Write files to directory \`output/'
     parallel jpeg-convert -q 90 -o output/ -- input/*.jpg
+
+    # Convert png files to jpg
+    parallel jpeg-convert -q 95 -o output/ -e jpg -- *.png
+
+    # Convert png files to lossy webp
+    parallel jpeg-convert -q 95 -o output/ -e webp -- *.png
 
 EOM
 }
@@ -41,12 +52,17 @@ run() {
 opts=()
 force=
 out_dir=
+out_ext=
 
 while [ $# -gt 0 ] && [[ $1 == -* ]]; do
     case "$1" in
         -h|--help)
             usage
             exit
+            ;;
+        -e|--ext)
+            out_ext="$2"
+            shift
             ;;
         -q|--quality)
             opts+=(-quality "$2")
@@ -77,17 +93,29 @@ case $# in
     1)
         input="$1"
 
+        # split on final '.'
+        ext="${input##*.}"
+        basename="${input%.*}"
+
+
         if [ -n "$out_dir" ]; then
             # use out_dir as output directory
-            output="$out_dir/$(basename "$input")"
+            mkdir -vp "$out_dir"
+            if [ -n "$out_ext" ]; then
+                # user-specified output extension
+                output="$out_dir/$basename.$out_ext"
+            else
+                # default to input extension for output
+                output="$out_dir/$basename.$ext"
+            fi
         else
-            # infer output filename
-            output="$(dirname "$input")/$(basename "$input" .JPG).jpg"
-            if [[ $input != *.JPG ]]; then
+            # must specify output extension if output directory is not given
+            if [ -z "$out_ext" ]; then
                 usage
-                echo >&2 "error: input file must end with .JPG"
+                echo >&2 "error: Where should output go? Must pass OUTPUT, --out-dir, or --ext"
                 exit 2
             fi
+            output="$(dirname "$input")/$basename.$out_ext"
         fi
 
         ;;
@@ -95,6 +123,11 @@ case $# in
         if [ -n "$out_dir" ]; then
             usage
             echo >&2 "error: cannot pass OUTPUT and --out-dir"
+            exit 1
+        fi
+        if [ -n "$out_ext" ]; then
+            usage
+            echo >&2 "error: cannot pass OUTPUT and --ext"
             exit 1
         fi
         input="$1"
@@ -106,7 +139,7 @@ case $# in
         ;;
 esac
 
-if [ -z "$force" -a -e "$output" ]; then
+if [ -z "$force" ] && [ -e "$output" ]; then
     echo >&2 "error: output file already exists: '$output'"
     exit 3
 fi
