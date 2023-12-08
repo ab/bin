@@ -27,19 +27,19 @@ Options:
 Examples:
 
     # Convert input.JPG quality and resolution, save as output.jpg
-    jpeg-convert -q 90 -r 640x480 -e jpg input.JPG
+    image-convert -q 90 -r 640x480 -e jpg input.JPG
 
     # Convert a whole directory of files in parallel
-    parallel jpeg-convert -q 90 -e jpg -- *.JPG
+    parallel image-convert -q 90 -e jpg -- *.JPG
 
     # Write files to directory \`output/'
-    parallel jpeg-convert -q 90 -o output/ -- input/*.jpg
+    parallel image-convert -q 90 -o output/ -- input/*.jpg
 
     # Convert png files to jpg
-    parallel jpeg-convert -q 95 -o output/ -e jpg -- *.png
+    parallel image-convert -q 95 -o output/ -e jpg -- *.png
 
     # Convert png files to lossy webp
-    parallel jpeg-convert -q 95 -o output/ -e webp -- *.png
+    parallel image-convert -q 95 -o output/ -e webp -- *.png
 
 EOM
 }
