@@ -1,0 +1,62 @@
+#!/usr/bin/env python3
+"""
+usage: 1se-files-calendar-mtime DIRECTORY
+
+Print a calendar listing of every day in the year, showing which days have
+files in this directory.
+
+The purpose of this is to organize things like a 1SE spreadsheet to show which
+days have coverage in video files from a directory.
+"""
+
+import json
+import os
+import sys
+
+from datetime import date, timedelta
+
+
+def main(path: str):
+    files = os.listdir(path)
+
+    years: set[int] = set()
+    dates_dict: dict[date, list] = {}
+
+    for f in files:
+        fullpath = os.path.join(path, f)
+        stat = os.stat(fullpath)
+        day = date.fromtimestamp(stat.st_mtime)
+
+        if day not in dates_dict:
+            dates_dict[day] = []
+
+        dates_dict[day].append(f)
+        years.add(day.year)
+
+    for year in sorted(years):
+        day = date(year, 1, 1)
+        while day.year == year:
+            month = day.strftime("%B")
+            dom = day.strftime("%e").strip()
+
+            fields = [
+                str(day.year),
+                month + " " + dom,
+            ]
+
+            if day in dates_dict:
+                fields += ["TRUE", json.dumps(sorted(dates_dict[day]))]
+            else:
+                fields += ["", ""]
+
+            print("\t".join(fields))
+
+            day = day + timedelta(days=1)
+
+
+if __name__ == "__main__":
+    if len(sys.argv) < 2:
+        print(__doc__.strip())
+        sys.exit(1)
+
+    main(sys.argv[1])
