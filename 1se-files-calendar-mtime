@@ -1,12 +1,17 @@
 #!/usr/bin/env python3
 """
-usage: 1se-files-calendar-mtime DIRECTORY
+usage: 1se-files-calendar-mtime FILE...
 
 Print a calendar listing of every day in the year, showing which days have
-files in this directory.
+a file modified on that day.
 
 The purpose of this is to organize things like a 1SE spreadsheet to show which
 days have coverage in video files from a directory.
+
+For example:
+
+    1se-files-calendar-mtime *.mp4
+
 """
 
 import json
@@ -16,15 +21,12 @@ import sys
 from datetime import date, timedelta
 
 
-def main(path: str):
-    files = os.listdir(path)
-
+def main(files: list[str]) -> None:
     years: set[int] = set()
     dates_dict: dict[date, list] = {}
 
     for f in files:
-        fullpath = os.path.join(path, f)
-        stat = os.stat(fullpath)
+        stat = os.stat(f)
         day = date.fromtimestamp(stat.st_mtime)
 
         if day not in dates_dict:
@@ -59,4 +61,4 @@ if __name__ == "__main__":
         print(__doc__.strip())
         sys.exit(1)
 
-    main(sys.argv[1])
+    main(sys.argv[1:])
