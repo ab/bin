@@ -16,6 +16,7 @@ playback possible on Android.
 
 Under the hood, this will keep the video codec as-is (expected to be H264),
 while encoding the audio as AAC (expected to be PCM originally).
+It will also remove the timecode track, which can cause compatibility issues.
 EOM
     exit 1
 fi
@@ -28,6 +29,6 @@ else
     output="$(dirname "$input")/${input%.???}.mp4"
 fi
 
-run ffmpeg -i "$input" -c:v copy -c:a aac "$output"
+run ffmpeg -i "$input" -c:v copy -c:a aac -write_tmcd 0 -- "$output"
 
 echo "Successfully wrote $output"
