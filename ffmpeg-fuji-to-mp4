@@ -17,6 +17,11 @@ playback possible on Android.
 Under the hood, this will keep the video codec as-is (expected to be H264),
 while encoding the audio as AAC (expected to be PCM originally).
 It will also remove the timecode track, which can cause compatibility issues.
+
+Convert a whole directory, one at a time (ffmpeg messes up tty if parallel):
+
+    parallel -j 1 $(basename "$0") -- *.MOV
+
 EOM
     exit 1
 fi
