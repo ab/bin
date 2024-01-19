@@ -1,0 +1,14 @@
+#!/bin/bash
+set -euo pipefail
+
+if [ $# -ge 1 ] && [[ $1 == "-h" || $1 == "--help" ]] ; then
+    cat >&2 <<EOM
+usage: $(basename "$0") COMMAND
+
+Open a browser window with debian file search for bin/COMMAND
+This is useful if you are on a system that cannot use command-not-found or
+apt-file.
+EOM
+fi
+
+xdg-open "https://packages.debian.org/search?suite=sid&arch=amd64&mode=exactfilename&searchon=contents&keywords=bin/$1"
