@@ -7,18 +7,19 @@ import textwrap
 system_random = random.SystemRandom()
 
 
-def main(choices):
+def main(choices: list[str]) -> int:
     """
     usage: choice CHOICES...
 
-    Pick a value at random among CHOICES.
+    Pick a value at random among CHOICES using secure random.
     """
     if not choices:
-        sys.stderr.write(textwrap.dedent(main.__doc__))
+        sys.stderr.write(textwrap.dedent(main.__doc__).lstrip())
         return 1
 
     print(system_random.choice(choices))
+    return 0
 
 
 if __name__ == '__main__':
-    main(sys.argv[1:])
+    sys.exit(main(sys.argv[1:]))
