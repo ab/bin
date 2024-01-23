@@ -41,25 +41,127 @@ prompt_yn() {
     done
 }
 
-current_branch="$(git branch --show-current)"
-nothing_to_do=1
 
-for branch in $(git branch --format='%(refname:short)' --merged); do
-    case "$branch" in
-        master|main)       continue ;;
-        stages/*)          continue ;;
-        env/*)             continue ;;
-        "$current_branch") continue ;;
+# Determine the main/master branch and echo its name.
+git-main-branch() {
+    local ret
+    git rev-parse --verify --quiet main >/dev/null && ret=$? || ret=$?
+
+    case "$ret" in
+        0)
+            echo main
+            return
+            ;;
+        1)
+            # pass
+            ;;
+        *)
+            # probably not a git repo / some other error
+            return "$ret"
+            ;;
     esac
 
-    nothing_to_do=
-    if prompt_yn "Delete '$branch'?"; then
-        run git branch -d "$branch"
+    if git rev-parse --verify --quiet master >/dev/null; then
+        echo master
+    else
+        echo >&2 "Neither master nor main exists"
+        return 1
     fi
-done
+}
 
-if [ -n "$nothing_to_do" ]; then
-    echo "Nothing to do"
-else
-    echo "Done"
-fi
+
+git-is-branch-cherry-equivalent() {
+    local main branch
+    main="$1"
+    branch="$2"
+
+    local merge_base
+    merge_base="$(git merge-base "$main" "$branch")"
+
+    # get the tree content as of the branch
+    local tree
+    tree="$(git rev-parse "$branch^{tree}")"
+
+    # make a commit that's a single squashed commit of the tree, with
+    # the main/master merge base as the parent
+    local tmp_commit
+    tmp_commit="$(git commit-tree "$tree" -p "$merge_base" -m "tmp from $0")"
+
+    # TODO: is there any way to gc this tmp commit when we're done?
+
+    # determine whether cherry-pick would do anything
+    if [[ $(git cherry "$main" "$tmp_commit") == "-"* ]]; then
+        # - prefix from git cherry means cherry-pick would be a no-op
+        return 0
+    fi
+
+    return 1
+}
+
+# usage: is-branch-excluded BRANCH CURRENT_BRANCH
+is-branch-excluded() {
+    local branch current_branch
+
+    branch="$1"
+    current_branch="$2"
+
+    # branches excluded from pruning
+    case "$branch" in
+        master|main)       return 0 ;;
+        stages/*)          return 0 ;;
+        env/*)             return 0 ;;
+        "$current_branch") return 0 ;;
+    esac
+
+    return 1
+}
+
+
+main() {
+    local branch current_branch
+    local nothing_to_do
+
+    current_branch="$(git branch --show-current)"
+    nothing_to_do=1
+
+    # prune merged branches
+    for branch in $(git branch --format='%(refname:short)' --merged); do
+
+        if is-branch-excluded "$branch" "$current_branch"; then
+            continue
+        fi
+
+        nothing_to_do=
+        if prompt_yn "Delete '$branch'?"; then
+            run git branch -d "$branch"
+        fi
+    done
+
+    local main
+    main="$(git-main-branch)"
+
+    # prune squashed branches
+    for branch in $(git for-each-ref refs/heads/ "--format=%(refname:short)")
+    do
+
+        if is-branch-excluded "$branch" "$current_branch"; then
+            continue
+        fi
+
+        if git-is-branch-cherry-equivalent "$main" "$branch"; then
+            nothing_to_do=
+            if prompt_yn "Delete squashed '$branch'?"; then
+                run git branch -D "$branch"
+            fi
+        fi
+    done
+
+
+    if [ -n "$nothing_to_do" ]; then
+        echo "Nothing to do"
+    else
+        echo "Done"
+    fi
+}
+
+main
