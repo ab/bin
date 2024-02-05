@@ -3,8 +3,41 @@
 # This will be superseded by run / daterun aliases in your shell
 # configuration, if any.
 
+usage() {
+    cat >&2 <<'EOM'
+usage: run COMMAND [ARGS...]
+usage: daterun COMMAND [ARGS...]
+
+Print the name and args of a command, then run it. This is like `set -x`,
+but just for a single command.
+
+If executed as `daterun`, also print the date before running the command.
+
+For example:
+
+    run ls -ld /bin
+    + ls -ld /bin
+    lrwxrwxrwx 1 root root 7 Dec 19 15:41 /bin -> usr/bin
+
+    daterun ls -ld /bin
+    @ 2012-01-08 18:47:21 -0800
+    + ls -ld /bin
+    lrwxrwxrwx 1 root root 7 Dec 19 15:41 /bin -> usr/bin
+
+EOM
+}
+
+if [ $# -gt 0 ]; then
+    case "$1" in
+        -h|--help)
+            usage
+            exit
+            ;;
+    esac
+fi
+
 if [ "$(basename "$0")" = 'daterun' ]; then
-    date >&2 '+@ %Y-%m-%d %H:%M:%S %z'
+    date >&2 '+@ %F %T %z'
 fi
 
 echo >&2 "+ $*"
