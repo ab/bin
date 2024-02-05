@@ -1,0 +1,39 @@
+#!/bin/bash
+set -euo pipefail
+
+# usage: prompt_yn [PROMPT]
+# Prompt the user for a yes/no response.
+#
+# Exit codes:
+#   0: user entered yes
+#   2: STDIN is not a TTY
+#   10: user entered no
+#
+prompt_yn() {
+    local prompt ans
+    if [ $# -ge 1 ]; then
+        prompt="$1"
+    else
+        prompt="Continue?"
+    fi
+
+    if [ ! -t 0 ]; then
+        echo >&2 "$prompt [y/n]"
+        echo >&2 "prompt_yn: error: stdin is not a TTY!"
+        return 2
+    fi
+
+    while true; do
+        read -r -p "$prompt [y/n] " ans
+        case "$ans" in
+            Y|y|yes|YES|Yes)
+                return
+                ;;
+            N|n|no|NO|No)
+                return 10
+                ;;
+        esac
+    done
+}
+
+prompt_yn
