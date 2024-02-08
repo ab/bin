@@ -7,8 +7,13 @@ run() {
 }
 
 
+# rename master to main locally
 run git branch -m master main
+
+# set remote tracking
 run git push -u origin main
-run git symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/main
+
+# repoint HEAD ref for remote
+run git remote set-head origin -a
 
 echo "Optional, now run: git push origin --delete master"
