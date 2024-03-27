@@ -15,6 +15,10 @@ FILL_CHAR = 'X'
 MAX_BLOCK_SIZE = 100 * 1024 * 1024
 
 
+class HolesError(Exception):
+    pass
+
+
 def sizeof_fmt(num, suffix='B') -> str:
     if num == 0:
         return "0B"
@@ -47,13 +51,17 @@ use a fixed block size instead.
         p.print_help()
         return 1
 
-    for filename in filenames:
-        print_file_info(
-            filename=filename,
-            print_dots=opts.verbose,
-            blocksize=opts.blocksize,
-            verbose=opts.verbose,
-        )
+    try:
+        for filename in filenames:
+            print_file_info(
+                filename=filename,
+                print_dots=opts.verbose,
+                blocksize=opts.blocksize,
+                verbose=opts.verbose,
+            )
+    except HolesError as err:
+        sys.stderr.write(f"\n\terror: {err}\n")
+        return 2
 
     return 0
 
@@ -133,7 +141,12 @@ def count_filled(
     sys.stdout.flush()
 
     while True:
-        size = fh.readinto(buf)
+        try:
+            size = fh.readinto(buf)
+        except OSError as err:
+            pos = fh.tell()
+            raise HolesError(f"{err} at fd offset={pos}") from err
+
         if size == 0:
             break
 
