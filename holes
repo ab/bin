@@ -5,14 +5,17 @@ import math
 import optparse
 import os
 import sys
+from dataclasses import dataclass
 from typing import Optional
 
 
 NULL_CHAR = '_'
 FILL_CHAR = 'X'
 
+MAX_BLOCK_SIZE = 100 * 1024 * 1024
 
-def sizeof_fmt(num, suffix='B'):
+
+def sizeof_fmt(num, suffix='B') -> str:
     if num == 0:
         return "0B"
     for unit in ['', 'Ki', 'Mi', 'Gi', 'Ti', 'Pi', 'Ei', 'Zi']:
@@ -22,7 +25,7 @@ def sizeof_fmt(num, suffix='B'):
     return "%.1f%s%s" % (num, 'Yi', suffix)
 
 
-def main():
+def main() -> int:
     usage = '''%prog [options] FILE...
 
 Find runs of null bytes in files, print the percentage of blocks that are
@@ -49,6 +52,7 @@ use a fixed block size instead.
             filename=filename,
             print_dots=opts.verbose,
             blocksize=opts.blocksize,
+            verbose=opts.verbose,
         )
 
     return 0
@@ -58,27 +62,47 @@ def print_file_info(
     filename: str,
     blocksize: Optional[int] = None,
     print_dots: bool = True,
-):
+    verbose: bool = False,
+) -> None:
     sys.stdout.write(filename)
 
-    filename, count, total, size = count_filled(
-        filename=filename, blocksize=blocksize, print_dots=print_dots,
+    res = count_filled(
+        filename=filename,
+        blocksize=blocksize,
+        print_dots=print_dots,
     )
 
     # technically / 0 is NaN, but 0% makes intuitive sense
-    frac = count / total if total > 0 else 0
-    print(f"\t{frac:.0%} full of {sizeof_fmt(size)}")
+    frac = res.count / res.total if res.total > 0 else 0
+    out = f"\t{frac:.0%} full of {sizeof_fmt(res.file_size)}"
+
+    print(out)
+
+
+@dataclass
+class CountResult:
+    filename: str
+    count: int
+    total: int
+    file_size: int
+    block_size: int
 
 
 def count_filled(
     filename: str,
     blocksize: Optional[int] = None,
     print_dots: bool = True,
-):
+    print_blocksize: bool = True,
+) -> CountResult:
     count = 0
     total = 0
 
-    file_size = os.stat(filename).st_size
+    fh = io.FileIO(filename, 'rb')
+
+    # Seek to end to determine file size.
+    # This method works on block devices, unlike stat.
+    file_size = fh.seek(0, os.SEEK_END)
+    fh.seek(0)
 
     if blocksize is None:
         if sys.stdout.isatty():
@@ -90,38 +114,52 @@ def count_filled(
             max_blocks = 1
 
         blocksize = math.ceil(file_size / max_blocks)
+        blocksize = min(blocksize, MAX_BLOCK_SIZE)
 
     null_comparison = memoryview(b'\0' * blocksize)
 
     buf = bytearray(blocksize)
 
+    if print_blocksize:
+        if print_dots:
+            sys.stdout.write("\n\t")
+        else:
+            sys.stdout.write("\t")
+        sys.stdout.write("bs=" + sizeof_fmt(blocksize))
+
     if print_dots:
         sys.stdout.write("\n\t")
-        sys.stdout.flush()
 
-    with io.FileIO(filename, 'rb') as fh:
-        while True:
-            size = fh.readinto(buf)
-            if size == 0:
-                break
+    sys.stdout.flush()
 
-            total += 1
+    while True:
+        size = fh.readinto(buf)
+        if size == 0:
+            break
 
-            if buf.startswith(null_comparison[:size], 0, size):
-                if print_dots:
-                    sys.stdout.write(NULL_CHAR)
-                    sys.stdout.flush()
-            else:
-                count += 1
-                if print_dots:
-                    sys.stdout.write(FILL_CHAR)
-                    sys.stdout.flush()
+        total += 1
+
+        if buf.startswith(null_comparison[:size], 0, size):
+            if print_dots:
+                sys.stdout.write(NULL_CHAR)
+                sys.stdout.flush()
+        else:
+            count += 1
+            if print_dots:
+                sys.stdout.write(FILL_CHAR)
+                sys.stdout.flush()
 
     if print_dots:
         sys.stdout.write('\n')
         sys.stdout.flush()
 
-    return (filename, count, total, file_size)
+    return CountResult(
+        filename=filename,
+        count=count,
+        total=total,
+        file_size=file_size,
+        block_size=blocksize,
+    )
 
 
 if __name__ == '__main__':
