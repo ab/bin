@@ -1,14 +1,20 @@
 #!/bin/bash
 set -euo pipefail
 
-# usage: prompt_yn [PROMPT]
-# Prompt the user for a yes/no response.
-#
-# Exit codes:
-#   0: user entered yes
-#   2: STDIN is not a TTY
-#   10: user entered no
-#
+usage() {
+    cat >&2 <<EOM
+usage: prompt_yn [PROMPT]
+Prompt the user for a yes/no response.
+
+Exit codes:
+  0: user entered yes
+  1: Other error
+  2: STDIN is not a TTY
+  10: user entered no
+EOM
+}
+
+# prompt_yn [PROMPT]
 prompt_yn() {
     local prompt ans
     if [ $# -ge 1 ]; then
@@ -36,4 +42,13 @@ prompt_yn() {
     done
 }
 
-prompt_yn
+if [ $# -ge 1 ] && [[ $1 == -h || $1 == --help ]]; then
+    usage
+    exit
+fi
+if [ $# -ge 2 ]; then
+    usage
+    exit 1
+fi
+
+prompt_yn "$@"
