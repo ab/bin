@@ -1,0 +1,15 @@
+#!/bin/sh
+set -e
+
+# Fix for obsidian opening URLs in wrong browser
+# https://forum.obsidian.md/t/obsidian-doesnt-use-default-browser-on-ubuntu-22-04/68177/21
+if [ "$SNAP_INSTANCE_NAME" = "obsidian" ]; then
+    case "$1" in
+        http://*|https://*)
+            unset XDG_DATA_HOME
+            unset XDG_CONFIG_HOME
+            ;;
+    esac
+fi
+
+exec /usr/bin/xdg-open "$@"
