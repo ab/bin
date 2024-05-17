@@ -1,5 +1,23 @@
 #!/usr/bin/env python3
+"""
+choice [OPTIONS...] CHOICES...
 
+Pick a value at random among CHOICES using secure random.
+
+Alternatively, choices may be provided on stdin.
+
+For example:
+    # pick a random RGB color
+    choice red green blue
+
+    # pick a number between 1 and 10
+    seq 1 10 | choice
+
+    # pick a random file from ./dir/
+    find ./dir/ -print0 | choice -0
+"""
+
+import optparse
 import random
 import sys
 import textwrap
@@ -7,19 +25,70 @@ import textwrap
 system_random = random.SystemRandom()
 
 
-def main(choices: list[str]) -> int:
-    """
-    usage: choice CHOICES...
+def main() -> int:
+    p = optparse.OptionParser(usage=__doc__.strip())
+    p.add_option('-0', '--null', help='Choices on stdin are delimited by null',
+                 action='store_true')
+    opts, args = p.parse_args()
 
-    Pick a value at random among CHOICES using secure random.
-    """
-    if not choices:
-        sys.stderr.write(textwrap.dedent(main.__doc__).lstrip())
-        return 1
+    mode = "args"
+    delimiter = "\n"
+
+    if opts.null:
+        mode = "stdin"
+        delimiter = "\0"
+
+    if mode == "stdin":
+        if args:
+            p.error("Cannot pass args with stdin mode")
+
+        choices = read_stdin(delimiter=delimiter)
+
+    elif mode == "args":
+        if len(args) > 0:
+            choices = args
+        else:
+            # if no choices in argv, use stdin as long as it isn't a tty
+
+            if sys.stdin.isatty():
+                p.print_help()
+                # p.error("Must provide choices in argv or stdin")
+                return 1
+
+            mode = "stdin"
+
+            choices = read_stdin(delimiter=delimiter)
+    else:
+        raise ValueError(f"Invalid mode {mode!r}")
+
+    if len(choices) == 0:
+        if mode == "stdin":
+            suffix = " (stdin was empty)"
+        else:
+            suffix = " (bug?)"
+        p.error("Must provide at least one choice" + suffix)
 
     print(system_random.choice(choices))
     return 0
 
 
+def read_stdin(delimiter: str) -> list[str]:
+    """
+    Read choices from stdin
+    """
+    data = sys.stdin.read()
+
+    # return empty list on empty input, not [""]
+    if not data:
+        return []
+
+    # if delimiter is newline, strip trailing newline so we don't end up with
+    # an empty string choice
+    if delimiter == "\n":
+        data = data.rstrip("\n")
+
+    return data.split(delimiter)
+
+
 if __name__ == '__main__':
-    sys.exit(main(sys.argv[1:]))
+    sys.exit(main())
