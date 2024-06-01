@@ -21,5 +21,5 @@ run() {
 }
 
 for i in "$@"; do
-  run exiftool -geotag= "$i"
+  run exiftool -gps:all= "$i"
 done
