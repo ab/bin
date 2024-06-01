@@ -1,0 +1,88 @@
+#!/bin/bash
+set -euo pipefail
+
+PING_IP=4.2.2.4
+DNS_SERVER=4.2.2.4
+TXT_RECORD=gmail.com
+
+run() {
+    echo >&2 "+ $*"
+    "$@"
+}
+
+colorecho() {
+    local fg
+    case "$1" in
+        black|gray|grey)       fg=30 ;;
+        red)                   fg=31 ;;
+        green)                 fg=32 ;;
+        yellow)                fg=33 ;;
+        blue)                  fg=34 ;;
+        magenta|purple|violet) fg=35 ;;
+        cyan)                  fg=36 ;;
+        white)                 fg=37 ;;
+        *)
+            usage
+            echo >&2 "Unknown color: $1"
+            return 1
+            ;;
+    esac
+    shift
+
+    if [ -t 1 ]; then
+        echo -ne "\033[1;${fg}m"
+    fi
+
+    echo "$@"
+
+    if [ -t 1 ]; then
+        echo -ne "\033[m"
+    fi
+}
+
+test_ip() {
+    run ping -c 2 "$PING_IP"
+}
+
+test_dns() {
+    run dig +short "$TXT_RECORD" txt "@$DNS_SERVER"
+}
+
+test_http_ip4() {
+    run curl -v -4 -sSf https://www.google.com/generate_204
+}
+test_http_ip6() {
+    run curl -v -6 -sSf https://www.google.com/generate_204
+}
+
+test_run() {
+    local func label
+    func="$1"
+    label="$2"
+
+    colorecho cyan "========================================"
+    colorecho cyan "📡 Testing $label..."
+    local ret
+    "$func" && ret=$? || ret=$?
+    if [ "$ret" -eq 0 ]; then
+        colorecho green "🟢 $label: OK"
+    else
+        colorecho red "🔴 $label: error"
+    fi
+
+    return "$ret"
+}
+
+main() {
+    run nmcli -g all
+    test_run test_ip "IP"
+    test_run test_dns "DNS"
+    test_run test_http_ip4 "HTTP/IPv4"
+    test_run test_http_ip6 "HTTP/IPv6"
+
+    # TODO check for IPv6 network interface
+
+    colorecho green "All OK"
+}
+
+main
