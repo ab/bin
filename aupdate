@@ -1,0 +1,49 @@
+#!/bin/bash
+set -euo pipefail
+
+# Run apt update && apt upgrade
+#
+# This script exists to take advantage of sudo apt update being configured to
+# run passwordless. Unlike the previous alias, this command will not prompt for
+# a sudo password unless there are packages to upgrade.
+
+
+run() {
+    echo >&2 "+ $*"
+    "$@"
+}
+
+# usage: faketty COMMAND_STRING
+#
+# Make a command think stdout is a tty.
+#
+# Useful for commands like apt that disable colors and print warnings when
+# their output is captured.
+#
+# NOTE 1: do not pass untrusted input to script, it will be run by a shell.
+# NOTE 2: this may make it easier to observe input/output via strace, so don't
+# use faketty where secrets may be input or output.
+#
+faketty() {
+    if [ $# -ne 1 ]; then
+        echo >&2 "usage: faketty COMMAND_STRING"
+        return 1
+    fi
+    script -qefc "$1" /dev/null
+}
+
+
+# Run apt update and tee output to variable and to terminal.
+# Use faketty to make apt think stdout is a tty so it keeps color.
+echo >&2 "+ sudo apt update"
+{
+    output=$(faketty 'sudo apt update' | tee /dev/fd/3)
+} 3>&1
+
+if grep '^All packages are up to date.' <<< "$output" >/dev/null; then
+    exit
+fi
+
+run apt list --upgradeable
+
+run sudo apt upgrade "$@"
