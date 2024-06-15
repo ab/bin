@@ -35,9 +35,10 @@ faketty() {
 
 # Run apt update and tee output to variable and to terminal.
 # Use faketty to make apt think stdout is a tty so it keeps color.
-echo >&2 "+ sudo apt update"
+# We pass -n to sudo to ensure that it never prompts for a password, given that
+# we're wrapping i/o with script.
 {
-    output=$(faketty 'sudo apt update' | tee /dev/fd/3)
+    output=$(faketty 'set -x; sudo -n apt update' | tee /dev/fd/3)
 } 3>&1
 
 if grep '^All packages are up to date.' <<< "$output" >/dev/null; then
