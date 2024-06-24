@@ -6,6 +6,13 @@ set -euo pipefail
 # This script exists to take advantage of sudo apt update being configured to
 # run passwordless. Unlike the previous alias, this command will not prompt for
 # a sudo password unless there are packages to upgrade.
+#
+# Sample /etc/sudoers.d/apt-update:
+# # Allow members of sudo to run apt update passwordless
+# %sudo ALL=(ALL) NOPASSWD: /usr/bin/apt update
+# %sudo ALL=(ALL) NOPASSWD: /usr/bin/apt-get update
+# %sudo ALL=(ALL) NOPASSWD: /usr/bin/aptitude update
+#
 
 
 run() {
