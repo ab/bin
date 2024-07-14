@@ -7,9 +7,43 @@ run() {
     "$@"
 }
 
+vcodec=
+
+opts=()
+while [ $# -gt 0 ] && [[ $1 == -* ]]; do
+    case "$1" in
+        -h|--help)
+            usage
+            exit
+            ;;
+        --crf)
+            opts+=(-crf "$2")
+            shift
+            ;;
+        --preset)
+            opts+=(-preset "$2")
+            shift
+            ;;
+        -s|--size)
+            opts+=(-s "$2")
+            shift
+            ;;
+        --vcodec)
+            vcodec="$2"
+            shift
+            ;;
+        *)
+            usage
+            echo >&2 "Unknown option $1"
+            exit 1
+            ;;
+    esac
+    shift
+done
+
 if [ $# -lt 1 ] || [ $# -gt 2 ]; then
     cat >&2 <<EOM
-usage: $(basename "$0") INPUT.MOV [OUTPUT.mp4]
+usage: $(basename "$0") [OPTIONS] INPUT.MOV [OUTPUT.mp4]
 
 Convert Fuji .mov quicktime video to .mp4 container, which makes native
 playback possible on Android.
@@ -17,6 +51,14 @@ playback possible on Android.
 Under the hood, this will keep the video codec as-is (expected to be H264),
 while encoding the audio as AAC (expected to be PCM originally).
 It will also remove the timecode track, which can cause compatibility issues.
+
+Options:
+
+    -h,--help           Display this message
+    --crf NUM           Set video quality rate factor (see -crf 22)
+    -s,--size SIZE      Resize video to SIZE (e.g. 1920x1080)
+    --preset PRESET     Set video encoding preset (e.g. slow/medium/fast)
+    --vcodec CODEC      Set video codec (e.g. libx264/libx265)
 
 Convert a whole directory, one at a time (ffmpeg messes up tty if parallel):
 
@@ -34,6 +76,16 @@ else
     output="$(dirname "$input")/${input%.???}.mp4"
 fi
 
-run ffmpeg -i "$input" -c:v copy -c:a aac -write_tmcd 0 -- "$output"
+if [ -z "$vcodec" ]; then
+    if [ "${#opts[@]}" -eq 0 ]; then
+        # if no transcoding options, then copy input without transcoding
+        vcodec=copy
+    else
+        # otherwise default to libx265
+        vcodec=libx265
+    fi
+fi
+
+run ffmpeg -i "$input" "${opts[@]}" -map_metadata 0 -c:v "$vcodec" -c:a aac -write_tmcd 0 -- "$output"
 
 echo "Successfully wrote $output"
