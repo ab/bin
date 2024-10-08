@@ -57,12 +57,18 @@ Options:
     -h,--help           Display this message
     --crf NUM           Set video quality rate factor (see -crf 22)
     -s,--size SIZE      Resize video to SIZE (e.g. 1920x1080)
-    --preset PRESET     Set video encoding preset (e.g. slow/medium/fast)
+    --preset PRESET     Set video encoding preset (slow/medium/fast/veryfast)
     --vcodec CODEC      Set video codec (e.g. libx264/libx265)
+
+Examples:
 
 Convert a whole directory, one at a time (ffmpeg messes up tty if parallel):
 
     parallel -j 1 $(basename "$0") -- *.MOV
+
+Re-encode a video at more reasonable bitrate to reduce size:
+
+    $(basename "$0") --preset veryfast DSCF1234.MOV
 
 EOM
     exit 1
