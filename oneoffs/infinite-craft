@@ -1,0 +1,24 @@
+#!/bin/bash
+set -euo pipefail
+
+main() {
+    local one two
+    one="$1"
+    two="$2"
+
+    if [ -z "${COOKIE-}" ]; then
+        echo >&2 "Please set COOKIE=..."
+        return 1
+    fi
+
+
+    curl -sSf "https://neal.fun/api/infinite-craft/pair?first=$one&second=$two" \
+        -H "cookie: $COOKIE" \
+        -H 'referer: https://neal.fun/infinite-craft/' \
+        -H 'user-agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36'
+        #-H 'user-agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36'
+
+    echo
+}
+
+main "$@"
