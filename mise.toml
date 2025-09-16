@@ -1,0 +1,12 @@
+[tasks.test]
+description = "Run test suite"
+run = "bats ./test"
+
+[tasks.install_dev_deps]
+description = "Install testing/dev dependencies"
+run = """
+set -eux
+if ! which bats; then
+    sudo apt install -y bats bats-assert
+fi
+"""
