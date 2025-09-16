@@ -1,0 +1,23 @@
+# https://taskfile.dev/
+#
+# go install github.com/go-task/task/v3/cmd/task@latest
+#
+
+version: '3'
+
+tasks:
+  test:
+    desc: Run test suite
+    aliases: [tests]
+    cmds:
+      - bats ./test
+
+  install_dev_deps:
+    desc: Install testing/development dependencies
+    cmds:
+      - sudo apt install -y bats bats-assert
+
+  default:
+    cmds:
+      - task -l
+
