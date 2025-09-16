@@ -3,8 +3,14 @@
 usage: total [FILE...]
 
 Sum numbers given on stdin or in files and print the total.
+
+For example:
+
+    $ seq 1 10 | total
+    55
 """
 
+import decimal
 import fileinput
 import sys
 
@@ -24,10 +30,17 @@ for line in fileinput.input():
     if not line:
         continue
 
+    # try parsing as int, then Decimal (don't bother with float)
     try:
         n = int(line)
     except ValueError:
-        n = float(line)
+        try:
+            n = decimal.Decimal(line)
+        except decimal.InvalidOperation as err:
+            if not err.args[0][0] == decimal.ConversionSyntax:
+                raise
+            sys.stderr.write(f"Invalid number: {line!r}\n")
+            sys.exit(2)
 
     total += n
 
