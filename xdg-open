@@ -12,4 +12,11 @@ if [ "$SNAP_INSTANCE_NAME" = "obsidian" ]; then
     esac
 fi
 
+# shellcheck disable=SC3028
+case "${OSTYPE-}" in
+    darwin*)
+        exec /usr/bin/open "$@"
+        ;;
+esac
+
 exec /usr/bin/xdg-open "$@"
