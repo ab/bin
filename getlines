@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# get a single line or slice of lines from stdin/files, similar to head + tail together
+
+
+usage() {
+    local base
+    base="$(basename "$0")"
+    cat >&2 <<EOM
+usage: $base LINES [FILE...]
+
+Print LINES from FILE(s) or stdin.
+
+LINES may be delimited with hyphens for slices or commas for separate lines.
+
+For example:
+
+    Print line 3 from foo.txt:
+    $base 3 foo.txt
+
+    Print lines 5 and 10 from stdin:
+    $base 5,10
+
+    Print lines 20-30 and 100 from stdin:
+    $base 20-30,100
+
+EOM
+}
+
+if [ $# -eq 0 ]; then
+    usage
+    exit 1
+fi
+
+if [[ "$1" == "-h" || "$1" == "--help"  ]]; then
+    usage
+    exit
+fi
+
+spec="$1"
+shift
+
+if [ -z "$spec" ]; then
+    usage
+    exit 1
+fi
+
+sedspec=
+
+mapfile -td, lines < <(echo -n "$spec")
+for line in "${lines[@]}"; do
+    if [[ $line == *-* ]]; then
+        mapfile -td- slice < <(echo -n "$line")
+
+        if [ "${#slice[@]}" -ne 2 ]; then
+            usage
+            exit 2
+        fi
+
+        sedspec="${sedspec}${slice[0]},${slice[1]}p;"
+    else
+        sedspec="${sedspec}${line}p;"
+    fi
+done
+
+# sed print 5-10: 5,10p
+# sed print 1 and 3: 1p;3p
+
+cat -- "$@" | sed -n "$sedspec"
