@@ -1,0 +1,13 @@
+#!/usr/bin/env python3
+
+import sys
+
+data = {
+    "in": sys.stdin.isatty(),
+    "out": sys.stdout.isatty(),
+    "err": sys.stderr.isatty(),
+}
+
+print("---")
+for k, v in data.items():
+    print("  " + k + ": " + str(v))
