@@ -1,6 +1,35 @@
 #!/bin/bash
 set -euo pipefail
 
+usage() {
+    cat >&2 <<EOM
+usage: git rm-merged-branches [OPTIONS]
+
+Look for git branches that have been merged to main, and interactively prompt
+for whether to delete them.
+
+This is useful to clean up local branches that are associated with pull
+requests that have been merged.
+
+Git can natively tell us which branches were merged (git branch --merged).
+
+This command also tries to handle squash + merge cases. (To do this, it checks
+each branch by squashing the branch and cherry picking the result to see if
+there is any remaining diff.)
+
+The default branch is assumed to be called 'main' or 'master'.
+
+Exclusions:
+- The currently checked out branch is ignored
+- Branches env/* or stages/* are ignored
+
+Options:
+    -h, --help          Display help text
+    --no-prune-squash   Don't check for squashed branches
+
+EOM
+}
+
 run() {
     echo >&2 "+ $*"
     "$@"
@@ -137,24 +166,27 @@ main() {
         fi
     done
 
-    local main
-    main="$(git-main-branch)"
+    if [ -n "$prune_squash" ]; then
 
-    # prune squashed branches
-    for branch in $(git for-each-ref refs/heads/ "--format=%(refname:short)")
-    do
+        local main
+        main="$(git-main-branch)"
 
-        if is-branch-excluded "$branch" "$current_branch"; then
-            continue
-        fi
+        # prune squashed branches
+        for branch in $(git for-each-ref refs/heads/ "--format=%(refname:short)")
+        do
 
-        if git-is-branch-cherry-equivalent "$main" "$branch"; then
-            nothing_to_do=
-            if prompt_yn "Delete squashed '$branch'?"; then
-                run git branch -D "$branch"
+            if is-branch-excluded "$branch" "$current_branch"; then
+                continue
             fi
-        fi
-    done
+
+            if git-is-branch-cherry-equivalent "$main" "$branch"; then
+                nothing_to_do=
+                if prompt_yn "Delete squashed '$branch'?"; then
+                    run git branch -D "$branch"
+                fi
+            fi
+        done
+    fi
 
 
     if [ -n "$nothing_to_do" ]; then
@@ -163,5 +195,24 @@ main() {
         echo "Done"
     fi
 }
+
+prune_squash=1
+
+while [ $# -ge 1 ] && [[ $1 == -* ]]; do
+    case "$1" in
+        -h|--help)
+            usage
+            exit
+            ;;
+        --no-prune-squash)
+            prune_squash=
+            ;;
+        *)
+            echo >&2 "Invalid option: $1"
+            exit 1
+            ;;
+    esac
+    shift
+done
 
 main
