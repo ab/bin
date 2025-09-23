@@ -10,3 +10,15 @@ if ! which bats; then
     sudo apt install -y bats bats-assert
 fi
 """
+
+[tasks.install_dev_deps_macos]
+description = "Install testing/dev dependencies on macOS"
+run = """
+set -eux
+brew install bats-core
+brew tap bats-core/bats-core
+brew install bats-assert bats-support
+set +x
+
+echo "Warning: you must set 'export BATS_LIB_PATH=$(brew --prefix)/lib'"
+"""
