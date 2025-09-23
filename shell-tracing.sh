@@ -13,12 +13,23 @@
 #    | grep ^TRACEPARENT | cut -f2 -d=)
 #export TRACEPARENT
 
+perf::conf_write() {
+    set -x
+    tee ~/.bash_tracing_conf <<EOM
+# Config for ~/bin/shell-tracing.sh
+__log_performance=1
+__log_threshold=0.75 # seconds
+EOM
+    set +x
+}
+
 perf::start() {
     __log_performance=1
     __log_threshold=${__log_threshold-0.5}
     __log_start="${__log_start-$EPOCHREALTIME}"
     __log_span_start=()
     __log_span=()
+    __log_span_count=0
     __log_span_ids=()
     __log_file=$(mktemp "/tmp/bash.perf.json.$(date +%s).XXXXXX")
     echo >"$__log_file" '{ "spans": ['
@@ -36,7 +47,7 @@ perf::cleanup() {
     total=$(bc -l <<< "$EPOCHREALTIME - $__log_start")
 
     if (( $(bc -l <<< "$total > $__log_threshold") )); then
-        echo >&2 "perf: total time (ms) $total exceeds threshold"
+        echo >&2 "perf: total time (ms) $total exceeds threshold ($__log_threshold)"
         echo >&2 "perf: see full report in $__log_file"
         echo >&2
 
@@ -47,7 +58,7 @@ perf::cleanup() {
     else
         rm "$__log_file"
     fi
-    unset __log_threshold __log_start __log_span_start __log_span __log_span_ids __log_file
+    unset __log_threshold __log_start __log_span_start __log_span __log_span_count __log_span_ids __log_file
 }
 
 span_start() {
@@ -57,7 +68,8 @@ span_start() {
 
     local now span_id
     now=$EPOCHREALTIME
-    span_id=$RANDOM
+    ((++__log_span_count))
+    span_id=$(printf "%03d" "$__log_span_count")
     __log_span_start+=("$now")
     __log_span+=("$*")
     __log_span_ids+=("$span_id")
