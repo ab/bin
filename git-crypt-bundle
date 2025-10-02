@@ -1,9 +1,14 @@
 #!/bin/bash
 set -euo pipefail
 
-VERSION="0.1"
+VERSION="0.2"
 
 . "$(dirname "$0")/bash-backtrace.sh"
+
+# TODOs
+# - move config out of git and into file
+#   - config should be in outer bundle dir to enable restoration
+#   - write better docs / usage on creation, restoration, push/pull
 
 usage() {
     basename="$(basename "$0")"
@@ -44,6 +49,7 @@ read_config() {
 
     BUNDLE_DIRECTORY="$(run git config cryptbundle.directory)"
     GPG_RECIPIENT="$(run git config cryptbundle.gpg-recipient)"
+    GIT_AMEND="$(run git config cryptbundle.git-amend || true)"
 }
 
 cmd_info() {
@@ -60,6 +66,7 @@ PWD: $PWD
     GCB_BASENAME=$GCB_BASENAME
     GCB_FILE=$GCB_FILE
     GCB_PASS_FILE=$GCB_PASS_FILE
+    GIT_AMEND=$GIT_AMEND
 EOM
 }
 
@@ -91,9 +98,8 @@ decrypt_bundle() {
     pushd "$BUNDLE_DIRECTORY"
 
     rm -fv "$GCB_FILE" "${GCB_FILE}.gpg"
-    run gpg -d --batch -o "${GCB_FILE}.gpg" "${GCB_FILE}.gpg.gpg"
-    run gpg -d --batch --passphrase-fd 0 -o "$GCB_FILE" \
-        "${GCB_FILE}.gpg" < "$GCB_PASS_FILE"
+    run gpg -d --batch -o - "${GCB_FILE}.gpg.gpg" \
+        | run gpg -d --batch --passphrase-fd 3 -o "$GCB_FILE" 3< "$GCB_PASS_FILE"
 
     popd
 }
@@ -102,9 +108,27 @@ encrypt_bundle() {
     pushd "$BUNDLE_DIRECTORY"
 
     rm -fv "${GCB_FILE}.gpg"
-    run gpg -c --batch --passphrase-fd 0 "$GCB_FILE" < "$GCB_PASS_FILE"
     rm -fv "${GCB_FILE}.gpg.gpg"
-    run gpg -e -r "$GPG_RECIPIENT" --batch "${GCB_FILE}.gpg"
+
+    run gpg -c -z 0 --batch --passphrase-fd 0 -o - "$GCB_FILE" < "$GCB_PASS_FILE" \
+        | run gpg -e -z 0 -r "$GPG_RECIPIENT" --batch -o "$GCB_FILE.gpg.gpg"
+
+    popd
+}
+
+bundle_git_commit() {
+    pushd "$BUNDLE_DIRECTORY"
+
+    local message prev
+    message='Update crypt bundle.'
+
+    prev=$(git log -1 --pretty=format:%s)
+
+    if [ -n "$GIT_AMEND" ] && [ "$prev" = "$message" ]; then
+        run git commit -a --amend --reset-author -m "$message"
+    else
+        run git commit -a -m "$message"
+    fi
 
     popd
 }
@@ -122,6 +146,7 @@ create_bundle() {
 cmd_push_local() {
     create_bundle
     encrypt_bundle
+    bundle_git_commit
 }
 
 cmd_pull() {
@@ -136,8 +161,12 @@ cmd_push() {
     cmd_push_local
 
     pushd "$BUNDLE_DIRECTORY"
-    git commit -a -m 'Update crypt bundle.'
-    run git push
+
+    if [ -n "$GIT_AMEND" ]; then
+        run git push --force
+    else
+        run git push
+    fi
     popd
 }
 
@@ -167,6 +196,7 @@ case "$1" in
     push) read_config; cmd_push ;;
     pull-local) read_config; cmd_pull_local ;;
     push-local) read_config; cmd_push_local ;;
+    push-local-bundle) read_config; cmd_push_local ;;
     version)
         echo "$(basename "$0") version $VERSION"
         ;;
