@@ -1,0 +1,66 @@
+#!/bin/bash
+set -euo pipefail
+
+. "$(dirname "$0")/bash-backtrace.sh"
+
+run() {
+    echo >&2 "+ $*"
+    "$@"
+}
+
+# prompt_yn [PROMPT]
+prompt_yn() {
+    local prompt ans
+    if [ $# -ge 1 ]; then
+        prompt="$1"
+    else
+        prompt="Continue?"
+    fi
+
+    if [ ! -t 0 ]; then
+        echo >&2 "$prompt [y/n]"
+        echo >&2 "prompt_yn: error: stdin is not a TTY!"
+        return 2
+    fi
+
+    while true; do
+        read -r -p "$prompt [y/n] " ans
+        case "$ans" in
+            Y|y|yes|YES|Yes)
+                return
+                ;;
+            N|n|no|NO|No)
+                return 10
+                ;;
+        esac
+    done
+}
+
+main() {
+    files=$(run find /var/lib/snapd/cache/ -xdev -type f)
+
+    if [ -z "$files" ]; then
+        echo "Cache dir is empty. Nothing to do."
+        return
+    fi
+
+    echo
+    echo "Files to delete:"
+    echo "$files"
+    echo
+
+    echo "Total size:"
+    du -sh /var/lib/snapd/cache/
+    echo
+
+    prompt_yn "Continue?" || exit 1
+
+    run find /var/lib/snapd/cache/ -xdev -type f -print -delete
+}
+
+if [ "$(id -u)" -ne 0 ]; then
+    set -x
+    exec sudo "$0" "$@"
+fi
+
+main
