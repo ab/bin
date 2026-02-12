@@ -1,0 +1,62 @@
+#!/bin/bash
+set -euo pipefail
+
+usage() {
+    cat >&2 <<EOM
+usage: $(basename "$0") [encode|decode] [FILE]"
+  encode: Standard (.asc or .gpg) -> deb822 Signed-By format"
+  decode: deb822 Signed-By format -> standard ASCII .asc"
+
+Convert GPG public keys to/from the deb822 .sources Signed-By format.
+EOM
+}
+
+MODE="${1:-}"
+INPUT="${2:-}"
+FILE=""
+
+case "$MODE" in
+    -h|--help)
+        usage
+        exit
+        ;;
+    encode|decode)
+        ;;
+    *)
+        usage
+        exit 1
+        ;;
+esac
+
+# Determine source: Use file if provided, otherwise buffer stdin to tmp
+if [[ -n "$INPUT" && "$INPUT" != "-" ]]; then
+    FILE="$INPUT"
+else
+    TMPFILE=$(mktemp)
+    trap 'rm -f "$TMPFILE"' EXIT
+    echo >&2 "Reading key from stdin"
+    cat > "$TMPFILE"
+    FILE="$TMPFILE"
+fi
+
+case "$MODE" in
+    encode)
+        is_binary=0
+        if file -b --mime-encoding "$FILE" | grep -qv "us-ascii\|utf-8"; then
+            is_binary=1
+        fi
+
+        if [[ "$is_binary" -eq 1 ]]; then
+            gpg --enarmor --output - "$FILE" | sed 's/^/ /; s/^ $/ ./'
+        else
+            sed 's/^/ /; s/^ $/ ./' "$FILE"
+        fi
+        ;;
+    decode)
+        sed 's/^[[:space:]]//; s/^\.$//' "$FILE"
+        ;;
+    *)
+        usage
+        exit 1
+        ;;
+esac
