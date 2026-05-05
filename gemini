@@ -1,0 +1,18 @@
+#!/bin/bash
+set -euo pipefail
+
+exe=~/code/gemini/node_modules/.bin/gemini
+
+if [ -x "$exe" ]; then
+    exec "$exe" "$@"
+fi
+
+cat >&2 <<EOM
+Not installed.
+Try:
+    cd ~/code/gemini
+    pnpm install @google/gemini-cli
+
+EOM
+
+exit 1
