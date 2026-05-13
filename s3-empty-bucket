@@ -1,0 +1,140 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+    cat >&2 <<EOM
+usage: $(basename "$0") [OPTIONS] BUCKET_NAME
+
+Empty an S3 bucket by deleting all object versions.
+
+Once empty, the bucket can be deleted with aws s3api delete-bucket.
+
+Options:
+    -h, --help      Display this help message
+    -y, --yes       Don't prompt for confirmation
+
+EOM
+}
+
+run() {
+    echo >&2 "+ $*"
+    "$@"
+}
+
+# prompt_yn [PROMPT]
+prompt_yn() {
+    local prompt ans
+    if [ $# -ge 1 ]; then
+        prompt="$1"
+    else
+        prompt="Continue?"
+    fi
+
+    if [ ! -t 0 ]; then
+        echo >&2 "$prompt [y/n]"
+        echo >&2 "prompt_yn: error: stdin is not a TTY!"
+        return 2
+    fi
+
+    while true; do
+        read -r -p "$prompt [y/n] " ans
+        case "$ans" in
+            Y|y|yes|YES|Yes)
+                return
+                ;;
+            N|n|no|NO|No)
+                return 10
+                ;;
+        esac
+    done
+}
+
+delete_batch() {
+    local objects="$1"
+    local count
+    count=$(echo "$objects" | jq '.Objects | length')
+    if [[ "$count" -eq 0 ]]; then
+        return 1
+    fi
+
+    echo >&2 "+ aws s3api delete-objects --delete ..."
+    aws s3api delete-objects \
+        --bucket "$BUCKET" \
+        --delete "$objects" \
+        --output json
+}
+
+skip_prompt=
+
+while [ $# -ge 1 ] && [[ $1 == -* ]]; do
+    case "$1" in
+        -h|--help)
+            usage
+            exit
+            ;;
+        -y|--yes)
+            skip_prompt=1
+            ;;
+        *)
+            usage
+            echo >&2 "Error: unknown option $1"
+            exit 1
+            ;;
+    esac
+    shift
+done
+
+if [[ $# -ne 1 ]]; then
+    usage
+    exit 1
+fi
+
+BUCKET="$1"
+
+echo >&2 "Emptying s3://$BUCKET (including all versions and delete markers)..."
+
+if [ -z "$skip_prompt" ]; then
+    prompt_yn "OK to empty bucket $BUCKET ?"
+fi
+
+total=0
+
+while true; do
+    # List a page of versions + delete markers
+    page=$(run aws s3api list-object-versions \
+        --bucket "$BUCKET" \
+        --max-items 1000 \
+        --output json)
+
+    objects=$(jq <<< "$page" '{
+        Objects: [
+            (.Versions[]?  | {Key: .Key, VersionId: .VersionId}),
+            (.DeleteMarkers[]? | {Key: .Key, VersionId: .VersionId})
+        ],
+        Quiet: true
+    }')
+
+    count=$(echo "$objects" | jq '.Objects | length')
+    echo >&2 "  Listed $count object versions"
+    if [[ "$count" -eq 0 ]]; then
+        break
+    fi
+
+    # Due to 'Quiet: true' in "$objects",
+    # the output should be empty unless there are errors
+    errors=$(delete_batch "$objects")
+    if [[ -n "$errors" ]]; then
+        echo >&2 "Errors encountered:"
+        echo >&2 "$errors"
+        exit 1
+    fi
+
+    total=$((total + count))
+    echo >&2 "  Deleted $count object versions ($total total)"
+
+    # If there's no next token we're done
+    next=$(echo "$page" | jq -r '.NextToken // empty')
+    [[ -z "$next" ]] && break
+done
+
+echo "Done. Deleted $total object versions from s3://$BUCKET."
