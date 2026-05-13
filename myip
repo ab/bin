@@ -2,9 +2,85 @@
 set -euo pipefail
 
 run() {
-    echo >&2 "+ $*"
+    if [ -n "$verbose" ]; then
+        echo >&2 "+ $*"
+    fi
     "$@"
 }
 
-run curl "$@" -sSf https://jsonip.com \
-    | cut -d'"' -f4
+usage() {
+    cat >&2 <<EOM
+usage: myip [OPTIONS]
+
+Look up your public IP address using HTTP or DNS.
+
+Defaults to using DNS and trying both IPv4 and IPv6.
+
+Options:
+    -h, --help      Display this help text
+    -4              Use IPv4
+    -6              Use IPv6
+    --both          Show IPv4 and IPv6 addresses
+    --dns           Look up via DNS (Google)
+    --http          Look up via https://jsonip.com
+    -q, --quiet     Silence log output
+
+EOM
+}
+
+mode=dns
+protos=(4 6)
+verbose=1
+
+while [ $# -ge 1 ] && [[ $1 == -* ]]; do
+    case "$1" in
+        -h|--help)
+            usage
+            exit
+            ;;
+        -4)
+            protos=(4)
+            ;;
+        -6)
+            protos=(6)
+            ;;
+        --both)
+            protos=(4 6)
+            ;;
+        --dns)
+            mode=dns
+            ;;
+        --http)
+            mode=http
+            ;;
+        -q|--quiet)
+            verbose=
+            ;;
+        *)
+            usage
+            echo >&2 "myip: unknown option $1"
+            exit 1
+            ;;
+    esac
+
+    shift
+done
+
+if [ $# -ge 1 ]; then
+    usage
+    exit 1
+fi
+
+lookup_http() {
+    for proto in "${protos[@]}"; do
+        run curl "-$proto"  -sSf https://jsonip.com | cut -d'"' -f4
+    done
+}
+
+lookup_dns() {
+    for proto in "${protos[@]}"; do
+        run dig "-$proto" +short -t txt o-o.myaddr.l.google.com @ns1.google.com | tr -d '"'
+    done
+}
+
+"lookup_$mode"
