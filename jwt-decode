@@ -1,4 +1,5 @@
 #!/usr/bin/env -S uv run --script
+# vim: set ft=python
 #
 # /// script
 # requires-python = ">= 3.11"
@@ -18,12 +19,35 @@ data = sys.stdin.read()
 sys.stderr.write(f"JWT to decode: {data!r}\n")
 sys.stderr.flush()
 
-parts = jwt.decode_complete(data, options={'verify_signature': False})
+def decode_smart(text: bytes):
+    print(type(text))
 
-print("\nDecoded JWT:", file=sys.stderr)
-out = {}
-out["header"] = parts["header"]
-out["payload"] = parts["payload"]
-out["signature_b64"] = base64.b64encode(parts["signature"]).decode('utf-8')
+    parts = jwt.decode_complete(data, options={'verify_signature': False})
 
-print(json.dumps(out, indent=2))
+    print("\nDecoded JWT:", file=sys.stderr)
+    out = {}
+    out["header"] = parts["header"]
+    out["payload"] = parts["payload"]
+    out["signature_b64"] = base64.b64encode(parts["signature"]).decode('utf-8')
+
+    print(json.dumps(out, indent=2))
+
+
+def decode_dumb(text: bytes):
+    for item in text.split('.'):
+        decoded = base64.b64decode(item + '==')
+        try:
+            print(decoded.decode('utf-8'))
+        except UnicodeDecodeError:
+            print(decoded)
+
+
+if __name__ == "__main__":
+    dumb_mode = False
+    if len(sys.argv) > 1 and sys.argv[1] == '--dumb':
+        dumb_mode = True
+
+    if dumb_mode:
+        decode_dumb(data)
+    else:
+        decode_smart(data)
