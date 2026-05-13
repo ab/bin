@@ -1,0 +1,59 @@
+#!/usr/bin/env python3
+
+import fileinput
+import sys
+
+from optparse import OptionParser
+
+
+def main():
+    """
+    Echo lines from input until the first blank line is encountered.
+    Also normalize newlines to LF, not CR+LF.
+
+    This is useful for printing just the HTTP headers from a response.
+    """
+
+    usage = "usage: %prog [OPTIONS] [FILE]"
+    description = __doc__
+
+    parser = OptionParser(usage=usage, description=description)
+
+    options, args = parser.parse_args()
+
+    if len(args) > 1:
+        parser.error("Too many arguments")
+
+    try:
+        echo_headers(files=args)
+    except KeyboardInterrupt:
+        sys.stderr.write("\n")
+        sys.exit(130)
+    except Exception as e:
+        sys.stderr.write(f"Error: {e}\n")
+        sys.exit(1)
+
+
+def echo_headers(files: list[str]):
+
+        done_with_headers = False
+
+        for line in fileinput.input(files, encoding="utf-8"):
+
+            if done_with_headers:
+                continue
+
+            line = line.rstrip('\r\n')
+
+            if line == "":
+                done_with_headers = True
+                # continue instead of break so that we consume all input /
+                # don't send SIGPIPE to something like curl on stdin
+                continue
+
+            sys.stdout.write(line + "\n")
+            sys.stdout.flush()
+
+
+if __name__ == "__main__":
+    main()
