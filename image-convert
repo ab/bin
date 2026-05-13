@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 set -euo pipefail
 
 usage() {
@@ -149,7 +149,7 @@ if [ -z "$force" ] && [ -e "$output" ]; then
     exit 3
 fi
 
-run convert "${opts[@]}" "$input" "$output"
+run magick "${opts[@]}" "$input" "$output"
 
 if [ -n "$mtime" ]; then
     touch --no-create --reference "$input" "$output"
