@@ -18,6 +18,7 @@ each branch by squashing the branch and cherry picking the result to see if
 there is any remaining diff.)
 
 The default branch is assumed to be called 'main' or 'master'.
+If neither of these exist, try to parse origin/HEAD.
 
 Exclusions:
 - The currently checked out branch is ignored
@@ -92,10 +93,20 @@ git-main-branch() {
 
     if git rev-parse --verify --quiet master >/dev/null; then
         echo master
-    else
-        echo >&2 "Neither master nor main exists"
-        return 1
+        return
     fi
+
+    local head_ref
+    if head_ref=$(git rev-parse --verify --quiet --abbrev-ref origin/HEAD)
+    then
+        echo "$head_ref" | cut -d/ -f2
+        return
+    fi
+
+    echo >&2 "Error: could not determine the default branch name"
+    echo >&2 "* Neither master nor main exists"
+    echo >&2 "* Also could not determine default branch from origin/HEAD"
+    return 1
 }
 
 

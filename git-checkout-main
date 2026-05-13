@@ -8,29 +8,41 @@ run() {
     "$@"
 }
 
+# Determine the main/master branch and echo its name.
 git-main-branch() {
     local ret
-    git rev-parse --verify --quiet master >/dev/null && ret=$? || ret=$?
+    git rev-parse --verify --quiet main >/dev/null && ret=$? || ret=$?
 
     case "$ret" in
         0)
-            echo master
+            echo main
             return
             ;;
         1)
             # pass
             ;;
         *)
+            # probably not a git repo / some other error
             return "$ret"
             ;;
     esac
 
-    if git rev-parse --verify --quiet main >/dev/null; then
-        echo main
-    else
-        echo >&2 "Neither master nor main exists"
-        return 1
+    if git rev-parse --verify --quiet master >/dev/null; then
+        echo master
+        return
     fi
+
+    local head_ref
+    if head_ref=$(git rev-parse --verify --quiet --abbrev-ref origin/HEAD)
+    then
+        echo "$head_ref" | cut -d/ -f2
+        return
+    fi
+
+    echo >&2 "Error: could not determine the default branch name"
+    echo >&2 "* Neither master nor main exists"
+    echo >&2 "* Also could not determine default branch from origin/HEAD"
+    return 1
 }
 
 # check out the master/main branch
