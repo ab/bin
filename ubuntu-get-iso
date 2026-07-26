@@ -1,29 +1,37 @@
 #!/bin/bash
 set -eu
 
-MIRROR="${MIRROR-"https://mirror.math.princeton.edu/pub/ubuntu-iso"}"
-
-declare -a suites
-suites=("desktop-amd64" "live-server-amd64")
+#DEFAULT_CD_MIRROR="https://cdimage.ubuntu.com/ubuntu/"
+DEFAULT_CD_MIRROR="https://mirrors.mit.edu/ubuntu-cdimage/ubuntu/"
+#DEFAULT_MIRROR="https://mirror.math.princeton.edu/pub/ubuntu-iso/"
+DEFAULT_MIRROR="http://mirrors.mit.edu/ubuntu-releases/"
+MIRROR=
 
 usage() {
     cat >&2 <<EOM
-usage: $(basename "$0") [options] VERSION
+usage: $(basename "$0") [options] VERSION [SUITE...]
 
 Download Ubuntu ISOs from a release mirror.
+
+If no SUITEs are given, defaults to desktop-amd64.
 
 Options:
 
     -h          Print this help message
     -m MIRROR   Use MIRROR as base URL rather than default.
-    -a          Download amd64 releases only
-    -d          Download desktop releases only
-    -s          Download server releases only
+    -c          Treat mirror as cdimage mirror, not release mirror
+    -a          Include arm64 releases (only works on cdimage mirrors)
+    -x          Include x86_64 (amd64) releases
+    -d          Download desktop releases
+    -s          Download server releases
     -w          Use wget as downloader (default)
     -z          Use zsync as downloader (mirror can't be https)
 
-Default mirror: $MIRROR
+Default mirror: $DEFAULT_MIRROR
 
+Note: arm64 images are only available from ubuntu-cdimage, not ubuntu-releases.
+      So you cannot download arm64 and amd64 at the same time, and they will
+      have different SHA256SUMS.
 
 For example:
 
@@ -39,8 +47,13 @@ run() {
 }
 
 cmd=wget
+cdimage_mirror=
+declare -a suites roles cpu_arch
+suites=()
+roles=()
+cpu_arch=()
 
-while getopts adhm:swz OPT; do
+while getopts acdhm:swxz OPT; do
     case $OPT in
         h)
             usage
@@ -50,13 +63,20 @@ while getopts adhm:swz OPT; do
             MIRROR="$OPTARG"
             ;;
         a)
-            suites=("desktop-amd64" "live-server-amd64" "server-amd64")
+            cpu_arch+=("arm64")
+            cdimage_mirror=1
+            ;;
+        x)
+            cpu_arch+=("amd64")
+            ;;
+        c)
+            cdimage_mirror=1
             ;;
         d)
-            suites=("desktop-amd64" "desktop-i386")
+            roles+=("desktop")
             ;;
         s)
-            suites=("live-server-amd64" "server-amd64")
+            roles+=("live-server")
             ;;
         w)
             cmd=wget
@@ -72,6 +92,14 @@ while getopts adhm:swz OPT; do
 done
 
 shift $((OPTIND-1))
+
+if [ -z "$MIRROR" ]; then
+    if [ -n "$cdimage_mirror" ]; then
+        MIRROR="$DEFAULT_CD_MIRROR"
+    else
+        MIRROR="$DEFAULT_MIRROR"
+    fi
+fi
 
 if [ $# -lt 1 ]; then
     usage
@@ -96,21 +124,70 @@ files=(
     SHA256SUMS{,.gpg}
 )
 
+if [[ ${#suites[@]} -ge 1 ]]; then
+    if [[ ${#roles[@]} -ge 1 || ${#cpu_arch[@]} -ge 1 ]]; then
+        usage
+        echo >&2 "Cannot pass SUITES and -a/-x or -d/-s options"
+        exit 1
+    fi
+else
+    if [[ ${#cpu_arch[@]} -eq 0 ]]; then
+        cpu_arch=(amd64)
+    fi
+    if [[ ${#roles[@]} -eq 0 ]]; then
+        roles=(desktop)
+    fi
+
+    for arch in "${cpu_arch[@]}"; do
+        for role in "${roles[@]}"; do
+            suites+=("$role-$arch")
+        done
+    done
+fi
+
+echo "Suites: ${suites[*]}"
+
 for suite in "${suites[@]}"; do
+    if [ -n "$cdimage_mirror" ]; then
+        if [[ $suite == *-amd64 ]]; then
+            echo >&2 "error: amd64 is not available from cdimage mirrors"
+            exit 2
+        fi
+    else
+        if [[ $suite == *-arm64 ]]; then
+            echo >&2 "error: amd64 is only available from cdimage mirrors"
+            exit 2
+        fi
+    fi
+
     isofiles+=("ubuntu-${version}-${suite}.iso")
 done
 
 urls=()
 isourls=()
 
+MIRROR="${MIRROR%/}"
+
+make_url() {
+    local major file
+    major=$1
+    file=$2
+
+    if [ -n "$cdimage_mirror" ]; then
+        echo "$MIRROR/releases/$major/release/$file"
+    else
+        echo "$MIRROR/$major/$file"
+    fi
+}
+
 echo >&2 "Files to download:"
 for file in "${files[@]}"; do
     echo >&2 "  $file"
-    urls+=("$MIRROR/$major/$file")
+    urls+=("$(make_url "$major" "$file")")
 done
 for file in "${isofiles[@]}"; do
     echo >&2 "  $file"
-    isourls+=("$MIRROR/$major/$file")
+    isourls+=("$(make_url "$major" "$file")")
 done
 
 case "$cmd" in
