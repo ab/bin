@@ -1,15 +1,25 @@
+# shellcheck shell=bash
+#
 # Add python-like backtraces to your bash shell scripts!
 #
 # Use like so:
 #
-# #!/bin/bash
-# set -eu
-# source "$password_vault/bin/lib/bash-backtrace.sh"
-# ...
+#   #!/bin/bash
+#   set -eu
+#   source "../bin/bash-backtrace.sh"
+#   ...
+#
+# It uses the ERR trap to trigger on errors and FUNCNAME for the traceback.
+#
+# It's recommended to use `set -e` (set -o errexit), which will cause your
+# script to exit on errors. Without errexit, you may see duplicate tracebacks
+# for functions, because each function/command separately invokes the ERR
+# handler when they exit nonzero.
 #
 
 if [ -z "${BASH_VERSION-}" ]; then
     echo >&2 "Error: this script only works in bash"
+    # shellcheck disable=SC2317
     return 1 || exit 1
 fi
 
@@ -24,19 +34,23 @@ bash_backtrace() {
     local frame
     local FRAMES=${#BASH_SOURCE[@]}
 
-
     echo >&2 "Traceback (most recent call last):"
 
     for ((frame=FRAMES-2; frame >= 0; frame--)); do
         local lineno=${BASH_LINENO[frame]}
+        local source=${BASH_SOURCE[frame+1]}
 
         printf >&2 '  File "%s", line %d, in %s\n' \
-            "${BASH_SOURCE[frame+1]}" "$lineno" "${FUNCNAME[frame+1]}"
+            "$source" "$lineno" "${FUNCNAME[frame+1]}"
 
-        sed >&2 -n "${lineno}s/^[   ]*/    /p" "${BASH_SOURCE[frame+1]}"
+        if [ -r "$source" ]; then
+            sed >&2 -n "${lineno}s/^[   ]*/    /p" "$source"
+        else
+            echo >&2 "    <source file not readable>"
+        fi
     done
 
-    printf >&2 "Exiting with status %d\n" "$ret"
+    printf >&2 "Command exited with status %d\n" "$ret"
 }
 
 trap bash_backtrace ERR
