@@ -31,18 +31,14 @@ perf::start() {
     __log_span=()
     __log_span_count=0
     __log_span_ids=()
-    __log_file=$(mktemp "/tmp/bash.perf.json.$(date +%s).XXXXXX")
-    echo >"$__log_file" '{ "spans": ['
+    __log_file=$(mktemp "/tmp/bash.perf.tsv.$(date +%s).XXXXXX")
+    printf 'span_id\tspan_name\tparent\tstart\tend\n' > "$__log_file"
 }
 perf::cleanup() {
     local span
     for span in "${__log_span[@]}"; do
         echo >&2 "Warning: spans still open: $span"
     done
-    # stupid json hack to avoid needing JSON5 w/ commas
-    echo >>"$__log_file" "  {}"
-    echo >>"$__log_file" "] }"
-
     local total
     total=$(bc -l <<< "$EPOCHREALTIME - $__log_start")
 
@@ -77,8 +73,8 @@ span_start() {
     local span_name
     span_name="$*"
 
-    if [[ $span_name == *\"* ]]; then
-        echo >&2 "Span name cannot contain \": '$span_name'"
+    if [[ $span_name == *$'\t'* ]]; then
+        echo >&2 "Span name cannot contain tab: '$span_name'"
         return 1
     fi
 }
@@ -104,7 +100,5 @@ span_end() {
 
     #/opt/homebrew/bin/otel-cli span -n "$span_name" -s bashrc --start "$span_start" --end "$now"
 
-    cat >>"$__log_file" <<EOM
-  {"span_id": "$span_id", "span_name": "$span_name", "parent": "$parent", "start": $span_start, "end": $now},
-EOM
+    printf '%s\t%s\t%s\t%s\t%s\n' "$span_id" "$span_name" "$parent" "$span_start" "$now" >> "$__log_file"
 }

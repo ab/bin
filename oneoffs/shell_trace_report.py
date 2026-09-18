@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-import json
+import csv
 import sys
 
 from dataclasses import dataclass
@@ -24,20 +24,19 @@ class Span:
             id=data["span_id"],
             name=data["span_name"],
             parent_id=data["parent"],
-            start=data["start"],
-            end=data["end"],
+            start=float(data["start"]),
+            end=float(data["end"]),
         )
 
 def main(filename: str, indent=2):
+    expected_columns = ['span_id', 'span_name', 'parent', 'start', 'end']
     with open(filename, 'r') as f:
-        data = json.load(f)
+        reader = csv.DictReader(f, delimiter='\t')
+        assert list(reader.fieldnames) == expected_columns, \
+            f"Unexpected columns: {reader.fieldnames}"
+        raw_spans = list(reader)
 
-    assert isinstance(data, dict)
-    assert isinstance(data["spans"], list)
-    assert data["spans"][-1] == {}  # last span is empty for trailing comma
-
-    raw_spans = data["spans"][:-1]
-    raw_spans.sort(key=lambda x: x["start"])
+    raw_spans.sort(key=lambda x: float(x["start"]))
 
     spans: dict[str, Span] = {}
     for raw in raw_spans:
