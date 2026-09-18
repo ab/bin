@@ -43,7 +43,7 @@ bash_backtrace() {
         printf >&2 '  File "%s", line %d, in %s\n' \
             "$source" "$lineno" "${FUNCNAME[frame+1]}"
 
-        if [ -r "$source" ]; then
+        if [ -f "$source" ] && [ -r "$source" ]; then
             sed >&2 -n "${lineno}s/^[   ]*/    /p" "$source"
         else
             echo >&2 "    <source file not readable>"

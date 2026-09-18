@@ -5,6 +5,7 @@ import sys
 
 from dataclasses import dataclass
 
+
 @dataclass
 class Span:
     id: str
@@ -28,10 +29,12 @@ class Span:
             end=float(data["end"]),
         )
 
+
 def main(filename: str, indent=2):
     expected_columns = ['span_id', 'span_name', 'parent', 'start', 'end']
     with open(filename, 'r') as f:
-        reader = csv.DictReader(f, delimiter='\t')
+        reader = csv.DictReader(f, delimiter='\t', quoting=csv.QUOTE_NONE)
+        assert reader.fieldnames, "No fields... empty file?"
         assert list(reader.fieldnames) == expected_columns, \
             f"Unexpected columns: {reader.fieldnames}"
         raw_spans = list(reader)
@@ -98,5 +101,10 @@ def format_float(num: float, color: bool) -> str:
 
     return out
 
+
 if __name__ == "__main__":
+    if len(sys.argv) != 2:
+        print("usage: shell_trace_report.py FILE.tsv", file=sys.stderr)
+        sys.exit(1)
+
     main(sys.argv[1])

@@ -29,6 +29,6 @@ setup() {
     assert_line '  File "bash-backtrace-fixture.sh", line 7, in outer'
     assert_line "    inner"
     assert_line '  File "bash-backtrace-fixture.sh", line 11, in inner'
-    assert_line "    cat /nonexistent"
+    assert_line "    false args blah"
     assert_line "Command exited with status 1"
 }

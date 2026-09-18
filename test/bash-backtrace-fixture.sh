@@ -8,7 +8,7 @@ outer() {
 }
 
 inner() {
-    cat /nonexistent
+    false args blah
 
     echo notreached
 }

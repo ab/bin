@@ -62,6 +62,14 @@ span_start() {
         return
     fi
 
+    local span_name
+    span_name="$*"
+
+    if [[ $span_name == *[$'\r\n\t']* ]]; then
+        echo >&2 "Span name contains invalid chars: '$span_name'"
+        return 1
+    fi
+
     local now span_id
     now=$EPOCHREALTIME
     ((++__log_span_count))
@@ -69,14 +77,6 @@ span_start() {
     __log_span_start+=("$now")
     __log_span+=("$*")
     __log_span_ids+=("$span_id")
-
-    local span_name
-    span_name="$*"
-
-    if [[ $span_name == *$'\t'* ]]; then
-        echo >&2 "Span name cannot contain tab: '$span_name'"
-        return 1
-    fi
 }
 span_end() {
     if [ -z "${__log_performance-}" ]; then
