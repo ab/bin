@@ -1,0 +1,13 @@
+#!/bin/sh
+set -eu
+
+case "$1" in
+    attach-session|switch-client) exit 0 ;;
+    new-session)
+        if [ -n "${TEST_SESSION_HEIGHT:-}" ]; then
+            exec "$REAL_TMUX" -L "$TEST_SOCKET" "$@" -x 80 -y "$TEST_SESSION_HEIGHT"
+        fi
+        ;;
+esac
+
+exec "$REAL_TMUX" -L "$TEST_SOCKET" "$@"
