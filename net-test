@@ -60,6 +60,7 @@ test_run() {
     func="$1"
     label="$2"
 
+    echo
     colorecho cyan "========================================"
     colorecho cyan "📡 Testing $label..."
     local ret
@@ -73,8 +74,16 @@ test_run() {
     return "$ret"
 }
 
+print_ifaces() {
+    case "$OSTYPE" in
+        darwin*) run scutil --nwi ;;
+        linux*)  run nmcli -g all ;;
+        *)       echo >&2 "Network status unavailable on this OS: $OSTYPE" ;;
+    esac
+}
+
 main() {
-    run nmcli -g all
+    print_ifaces
     test_run test_ip "IP"
     test_run test_dns "DNS"
     test_run test_http_ip4 "HTTP/IPv4"
@@ -82,6 +91,7 @@ main() {
 
     # TODO check for IPv6 network interface
 
+    echo
     colorecho green "All OK"
 }
 
