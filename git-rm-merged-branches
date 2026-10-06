@@ -22,6 +22,7 @@ If neither of these exist, try to parse origin/HEAD.
 
 Exclusions:
 - The currently checked out branch is ignored
+- Branches checked out in any worktree are ignored
 - Branches env/* or stages/* are ignored
 
 Options:
@@ -127,7 +128,8 @@ git-is-branch-cherry-equivalent() {
     local tmp_commit
     tmp_commit="$(git commit-tree "$tree" -p "$merge_base" -m "tmp from $0")"
 
-    # TODO: is there any way to gc this tmp commit when we're done?
+    # it's a bit wasteful to recreate the squash commit every time, but git gc
+    # will eventually clean it up
 
     # determine whether cherry-pick would do anything
     if [[ $(git cherry "$main" "$tmp_commit") == "-"* ]]; then
@@ -156,18 +158,39 @@ is-branch-excluded() {
     return 1
 }
 
+# usage: is-branch-in-worktree BRANCH [COMMENT]
+# Report whether a branch is checked out in a worktree
+is-branch-in-worktree() {
+    local branch worktree_path
+    branch="$1"
+    comment="${2-}"
+
+    worktree_path="$(git branch --list "$branch" --format='%(worktreepath)')"
+    if [ -n "$worktree_path" ]; then
+        echo >&2 "Skipping $comment '$branch': worktree checked out in $worktree_path"
+        return 0
+    fi
+
+    return 1
+}
+
 
 main() {
-    local branch current_branch
+    local branch current_branch main
     local nothing_to_do
 
     current_branch="$(git branch --show-current)"
+    main="$(git-main-branch)"
     nothing_to_do=1
 
     # prune merged branches
-    for branch in $(git branch --format='%(refname:short)' --merged); do
+    for branch in $(git branch --format='%(refname:short)' --merged "$main"); do
 
         if is-branch-excluded "$branch" "$current_branch"; then
+            continue
+        fi
+
+        if is-branch-in-worktree "$branch" '(merged)'; then
             continue
         fi
 
@@ -179,11 +202,8 @@ main() {
 
     if [ -n "$prune_squash" ]; then
 
-        local main
-        main="$(git-main-branch)"
-
-        # prune squashed branches
-        for branch in $(git for-each-ref refs/heads/ "--format=%(refname:short)")
+        # Only check branches not handled by the merged-branch pass.
+        for branch in $(git for-each-ref refs/heads/ "--format=%(refname:short)" --no-merged "$main")
         do
 
             if is-branch-excluded "$branch" "$current_branch"; then
@@ -191,6 +211,10 @@ main() {
             fi
 
             if git-is-branch-cherry-equivalent "$main" "$branch"; then
+                if is-branch-in-worktree "$branch" '(squashed)'; then
+                    continue
+                fi
+
                 nothing_to_do=
                 if prompt_yn "Delete squashed '$branch'?"; then
                     run git branch -D "$branch"
@@ -207,23 +231,25 @@ main() {
     fi
 }
 
-prune_squash=1
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+    prune_squash=1
 
-while [ $# -ge 1 ] && [[ $1 == -* ]]; do
-    case "$1" in
-        -h|--help)
-            usage
-            exit
-            ;;
-        --no-prune-squash)
-            prune_squash=
-            ;;
-        *)
-            echo >&2 "Invalid option: $1"
-            exit 1
-            ;;
-    esac
-    shift
-done
+    while [ $# -ge 1 ] && [[ $1 == -* ]]; do
+        case "$1" in
+            -h|--help)
+                usage
+                exit
+                ;;
+            --no-prune-squash)
+                prune_squash=
+                ;;
+            *)
+                echo >&2 "Invalid option: $1"
+                exit 1
+                ;;
+        esac
+        shift
+    done
 
-main
+    main
+fi
