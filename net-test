@@ -82,14 +82,22 @@ print_ifaces() {
     esac
 }
 
+has_ipv6_public_interfaces() {
+    ip -6 addr show scope global up -tentative 2>/dev/null | grep -E '\binet6 [23][0-9a-fA-F]{1,3}:' >/dev/null
+}
+
 main() {
     print_ifaces
     test_run test_ip "IP"
     test_run test_dns "DNS"
     test_run test_http_ip4 "HTTP/IPv4"
-    test_run test_http_ip6 "HTTP/IPv6"
 
-    # TODO check for IPv6 network interface
+    if has_ipv6_public_interfaces; then
+        test_run test_http_ip6 "HTTP/IPv6"
+    else
+        echo
+        colorecho yellow "🟡 IPv6: no interface detected"
+    fi
 
     echo
     colorecho green "All OK"
