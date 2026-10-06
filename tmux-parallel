@@ -1,0 +1,260 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+    cat >&2 <<'EOM'
+Usage: tmux-parallel [OPTIONS...] COMMAND... -- ARG...
+       tmux-parallel [OPTIONS...] -- COMMAND_1 COMMAND_2...
+       tmux-parallel [OPTIONS...] --script SCRIPT -- ARG...
+
+Run programs in parallel. This is like `parallel`, but each command is run in a
+tmux pane or window.
+
+There are three usage modes:
+
+    1. tmux-parallel [OPTIONS...] COMMAND... -- ARG...
+    Run COMMAND once for each ARG, with a single arg appended to each command.
+    Example:
+        tmux-parallel ping -c 3 -- example.com example.org
+
+    2. tmux-parallel [OPTIONS...] -- COMMAND_1 COMMAND_2...
+    Run each COMMAND_<N> independently.
+    Example:
+        tmux-parallel -- './run-app' 'tail -f logs/app.log'
+
+    3. tmux-parallel [OPTIONS...] --script SCRIPT -- ARG...
+    Run SCRIPT via bash -c for each ARG, making ARG available as $1.
+    Exported env vars will persist in the interactive shell after job exit.
+    Example:
+        # read dev.env/staging.env and deploy according to env vars
+        tmux-parallel --script 'source "$1.env" && echo $ENV && aws s3 cp foo s3://$S3_BUCKET' -- dev staging
+
+In the first form, each ARG is passed as one argument to COMMAND (including
+any fixed ARGs before --). In the second form, each COMMAND is a Bash command.
+With --script, SCRIPT is evaluated as Bash once per ARG, available as $1.
+Its working directory and exported variables carry into the shell opened
+with s. Commands that exit or replace the shell bypass the completion prompt.
+
+Run each job in a separate tmux pane (or window with -w).
+After a job exits, the pane/window remains until you choose:
+    s        Open a shell in the same pane or window
+    c        Close this pane or window
+
+Useful Tmux hotkeys (prefix is Ctrl-b by default):
+    prefix + n    Go to the next window (with -w)
+    prefix + p    Go to the previous window (with -w)
+    prefix + d    Detach without killing the session
+    prefix + x    Kill a pane (confirm when prompted)
+    prefix + &    Kill the current window (confirm when prompted)
+    prefix + :kill-session    Kill all windows and exit
+
+Examples:
+    tmux-parallel ping -c 3 -- example.com example.org
+    tmux-parallel -w ping -c 3 -- example.com example.org
+    tmux-parallel -- 'make test' 'make lint'
+    tmux-parallel -w --script 'cd "$1" && make' -- project-a project-b
+EOM
+}
+
+# Run a single job from within the child process.
+# We wrap the user's command in this so that we can display the post-exit
+# interactive prompt (open a shell or quit).
+# usage: $0 --run-job PANE MODE JOB [ARGS...]
+run_job() {
+    if [ $# -lt 4 ]; then
+        echo >&2 "run_job: invalid args. Got $*"
+        sleep 100
+        return 1
+    fi
+
+    # Prefix var names with _tp_* to avoid accidental overwrites from eval().
+    local _tp_pane _tp_mode _tp_job _tp_status _tp_label
+
+    _tp_pane=$2
+    _tp_mode=$3
+    _tp_job=$4
+
+    if [[ $_tp_mode == script ]]; then
+        _tp_label=$5
+        colorecho >&2 blue "+ [$5] $_tp_job"
+        set -- "$5"
+        # Evaluate in this Bash process so cwd and exported variables carry
+        # into the interactive shell opened below.
+        set +euo pipefail
+        eval "$_tp_job"
+        _tp_status=$?
+        set -euo pipefail
+    else
+        _tp_label=$_tp_job
+        colorecho >&2 blue "+ $_tp_job"
+        bash -c "$_tp_job" && _tp_status=$? || _tp_status=$?
+    fi
+
+    echo
+    echo
+
+    echo >&2 "Job: $_tp_label"
+    if [ "$_tp_status" -eq 0 ]; then
+        echo >&2 "Job exited with status $_tp_status"
+    else
+        colorecho red >&2 "Job exited with status $_tp_status"
+    fi
+
+    local choice
+
+    while true; do
+        echo >&2
+        echo >&2 -n 'Press a key:  [s] shell  [c] close: '
+        if ! IFS= read -r -s -n 1 choice </dev/tty; then
+            exit "$_tp_status"
+        fi
+        echo >&2
+        case "$choice" in
+            s|S)
+                "${SHELL:-bash}" -i || true
+                ;;
+            c|C)
+                tmux kill-pane -t "$_tp_pane"
+                exit "$_tp_status"
+                ;;
+        esac
+    done
+}
+
+colorecho() {
+    local color="$1" fg
+    shift
+
+    if [ ! -t 1 ]; then
+        echo "$*"
+        return
+    fi
+
+    case "$color" in
+        black|gray|grey)       fg=30 ;;
+        red)                   fg=31 ;;
+        green)                 fg=32 ;;
+        yellow)                fg=33 ;;
+        blue)                  fg=34 ;;
+        magenta|purple|violet) fg=35 ;;
+        cyan)                  fg=36 ;;
+        white)                 fg=37 ;;
+        *)
+            echo >&2 "colorecho: unknown color: $color"
+            return 1
+            ;;
+    esac
+
+    echo -ne "\033[1;${fg}m"
+    echo -n "$*"
+    echo -e "\033[m"
+}
+
+
+if [[ ${1:-} == --run-job ]]; then
+    run_job "$@"
+    exit
+fi
+
+if [ "$#" -eq 0 ]; then
+    usage
+    exit 1
+fi
+
+windows=0
+mode='command'
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        -h|--help) usage; exit 0 ;;
+        -w|--windows) windows=1 ;;
+        --script)
+            shift
+            if [ "$#" -eq 0 ]; then
+                usage
+                exit 1
+            fi
+            mode=script
+            script=$1
+            shift
+            break
+            ;;
+        *) break ;;
+    esac
+
+    shift
+done
+
+# Quote one argument for the shell tmux uses to start each pane.
+quote() {
+    local escaped=${1//\'/\'\\\'\'}
+    printf "'%s'" "$escaped"
+}
+
+command_prefix=
+if [ "$mode" != script ] && [ "${1:-}" != -- ]; then
+    while [ "$#" -gt 0 ] && [ "$1" != -- ]; do
+        command_prefix="$command_prefix$(quote "$1") "
+        shift
+    done
+fi
+
+if [ "$#" -eq 0 ] || { [ "$mode" = script ] && [ "$1" != -- ]; }; then
+    usage
+    exit 1
+fi
+shift
+
+if [ "$#" -eq 0 ]; then
+    usage
+    exit 1
+fi
+
+if ! command -v tmux >/dev/null 2>&1; then
+    echo >&2 'tmux-parallel: tmux: command not found'
+    exit 3
+fi
+
+if [ -n "${TMUX-}" ]; then
+    echo >&2 'tmux-parallel: refusing to nest sessions (unset TMUX to force)'
+    exit 1
+fi
+
+runner_path=$(realpath "${BASH_SOURCE[0]}")
+session="tmux-parallel-$$"
+pane=$(tmux new-session -d -s "$session" -P -F '#{pane_id}')
+
+for arg do
+    if [ "$windows" -eq 1 ]; then
+        tmux rename-window -t "$pane" -- "$arg"
+    fi
+
+    if [ "$mode" = script ]; then
+        job=$script
+    elif [ -n "$command_prefix" ]; then
+        job="$command_prefix$(quote "$arg")"
+    else
+        job=$arg
+    fi
+
+    runner="bash $(quote "$runner_path") --run-job $(quote "$pane") $(quote "$mode") $(quote "$job")"
+    if [ "$mode" = script ]; then
+        runner="${runner} $(quote "$arg")"
+    fi
+    tmux respawn-pane -k -t "$pane" "$runner"
+    if [ "$#" -gt 1 ]; then
+        if [ "$windows" -eq 1 ]; then
+            pane=$(tmux new-window -d -t "$session" -P -F '#{pane_id}')
+        else
+            if next_pane=$(tmux split-window -d -t "$pane" -P -F '#{pane_id}'); then
+                pane=$next_pane
+                tmux select-layout -t "$pane" tiled
+            else
+                echo >&2 'tmux-parallel: could not split pane; continuing in a new window'
+                pane=$(tmux new-window -d -t "$session" -P -F '#{pane_id}')
+            fi
+        fi
+    fi
+    shift
+done
+
+tmux attach-session -t "$session"
