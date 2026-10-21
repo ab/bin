@@ -1,0 +1,131 @@
+#!/usr/bin/env python3
+"""
+Look up IP addresses in AWS's published IP ranges.
+Each IP may be reported multiple times if multiple services/ranges match.
+
+Source data:
+    https://ip-ranges.amazonaws.com/ip-ranges.json
+
+Local cache:
+    ~/.cache/aws-ip-info/ip-ranges.json
+"""
+
+import ipaddress
+import json
+import optparse
+import os
+from pathlib import Path
+import sys
+import tempfile
+import time
+import urllib.error
+import urllib.request
+
+RANGES_URL = "https://ip-ranges.amazonaws.com/ip-ranges.json"
+CACHE_MAX_AGE = 24 * 60 * 60  # 1 day
+
+# convenient types
+IPAddress = ipaddress.IPv4Address | ipaddress.IPv6Address
+IPNetwork = ipaddress.IPv4Network | ipaddress.IPv6Network
+IPRange = tuple[IPNetwork, str, str, str]
+
+
+def parse_ranges(contents: str | bytes) -> list[IPRange]:
+    """Validate and parse both address families before using or caching data."""
+    data = json.loads(contents)
+    ranges: list[IPRange] = []
+    for key, prefix_key, version in (
+        ("prefixes", "ip_prefix", 4),
+        ("ipv6_prefixes", "ipv6_prefix", 6),
+    ):
+        for entry in data[key]:
+            network = ipaddress.ip_network(entry[prefix_key])
+            if network.version != version:
+                raise ValueError(f"Unexpected address family: {network}")
+            ranges.append(
+                (
+                    network,
+                    entry["region"],
+                    entry["service"],
+                    entry["network_border_group"],
+                )
+            )
+    return ranges
+
+
+def load_ranges(cache_path: Path) -> list[IPRange]:
+    try:
+        age = time.time() - cache_path.stat().st_mtime
+        if 0 <= age < CACHE_MAX_AGE:
+            return parse_ranges(cache_path.read_bytes())
+    except (OSError, ValueError, KeyError, TypeError):
+        pass  # Missing or corrupt caches are replaced by a fresh download.
+
+    print(f"Downloading AWS IP ranges from {RANGES_URL}", file=sys.stderr)
+    with urllib.request.urlopen(RANGES_URL, timeout=30) as response:
+        contents = response.read()
+    ranges = parse_ranges(contents)
+
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    temporary_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(dir=cache_path.parent, delete=False) as cache:
+            temporary_path = Path(cache.name)
+            cache.write(contents)
+        temporary_path.replace(cache_path)
+    finally:
+        if temporary_path is not None:
+            temporary_path.unlink(missing_ok=True)
+    return ranges
+
+
+class HelpFormatter(optparse.IndentedHelpFormatter):
+    def format_description(self, description: str | None) -> str:
+        return (description or "").strip() + "\n"
+
+
+def parse_options() -> list[IPAddress]:
+    """Parse and validate command-line arguments."""
+    parser = optparse.OptionParser(
+        usage="%prog [options] IP...",
+        description=__doc__,
+        formatter=HelpFormatter(),
+    )
+    _, args = parser.parse_args()
+    if not args:
+        parser.print_help()
+        parser.exit(1)
+    addresses: list[IPAddress] = []
+    for value in args:
+        try:
+            addresses.append(ipaddress.ip_address(value))
+        except ValueError as error:
+            parser.error(str(error))
+    return addresses
+
+
+def main(addresses: list[IPAddress], cache_path: Path | None = None) -> None:
+    """Look up addresses and print their AWS ranges, propagating load errors."""
+    if cache_path is None:
+        cache_root = Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache")
+        cache_path = cache_root / "aws-ip-info" / "ip-ranges.json"
+    ranges = load_ranges(cache_path)
+
+    print("IP\tPREFIX\tREGION\tSERVICE\tNETWORK_BORDER_GROUP")
+    for address in addresses:
+        matches = [entry for entry in ranges if address in entry[0]]
+        matches.sort(
+            key=lambda entry: (-entry[0].prefixlen, entry[2], entry[1], entry[3])
+        )
+        if not matches:
+            print(f"{address}\t-\t-\t-\t-")
+        for network, region, service, border_group in matches:
+            print(f"{address}\t{network}\t{region}\t{service}\t{border_group}")
+
+
+if __name__ == "__main__":
+    addresses = parse_options()
+    try:
+        main(addresses)
+    except (OSError, urllib.error.URLError, ValueError, KeyError, TypeError) as error:
+        sys.exit(f"{Path(sys.argv[0]).name}: could not load AWS IP ranges: {error}")
