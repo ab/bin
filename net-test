@@ -45,14 +45,31 @@ test_ip() {
 }
 
 test_dns() {
-    run dig +short "$TXT_RECORD" txt "@$DNS_SERVER"
+    run dig +time=3 +tries=1 +notcp +ignore +short "$TXT_RECORD" txt "@$DNS_SERVER"
+}
+
+test_dns_tcp() {
+    run dig +time=3 +tries=1 +tcp +short "$TXT_RECORD" txt "@$DNS_SERVER"
 }
 
 test_http_ip4() {
-    run curl -v -4 -sSf https://www.google.com/generate_204
+    run curl --connect-timeout 5 --max-time 15 -v -4 -sSf https://www.google.com/generate_204
 }
 test_http_ip6() {
-    run curl -v -6 -sSf https://www.google.com/generate_204
+    run curl --connect-timeout 5 --max-time 15 -v -6 -sSf https://www.google.com/generate_204
+}
+
+has_ipv6_route() {
+    # Determine whether we have an ipv6 connection by looking up route table to
+    # Google Public DNS.
+    case "$OSTYPE" in
+        darwin*) route -n get -inet6 2001:4860:4860::8888 >/dev/null 2>&1 ;;
+        linux*)  ip -6 route get 2001:4860:4860::8888 >/dev/null 2>&1 ;;
+        *)
+            echo >&2 "has_ipv6_route: skipping ipv6 route test on OSTYPE=$OSTYPE"
+            return 0
+            ;;
+    esac
 }
 
 test_run() {
@@ -82,21 +99,48 @@ print_ifaces() {
     esac
 }
 
-has_ipv6_public_interfaces() {
-    ip -6 addr show scope global up -tentative 2>/dev/null | grep -E '\binet6 [23][0-9a-fA-F]{1,3}:' >/dev/null
+print_diagnostics() {
+    case "$OSTYPE" in
+        darwin*)
+            run scutil --nc list || true
+            run scutil --dns || true
+            run route -n get "$DNS_SERVER" || true
+            ;;
+        linux*)
+            if ! command -v resolvectl >/dev/null 2>&1 || ! run resolvectl status; then
+                run cat /etc/resolv.conf || true
+            fi
+            run ip route get "$DNS_SERVER" || true
+            run ip rule show || true
+            run ip route show table all || true
+            ;;
+    esac
+
+    local tailscale
+    if command -v tailscale >/dev/null 2>&1; then
+        tailscale=tailscale
+    elif [ -x /Applications/Tailscale.app/Contents/MacOS/Tailscale ]; then
+        tailscale=/Applications/Tailscale.app/Contents/MacOS/Tailscale
+    else
+        echo "Tailscale CLI unavailable; skipping Tailscale status"
+        return 0
+    fi
+
+    # A disconnected daemon can make status exit nonzero; still run the tests.
+    run "$tailscale" status --peers=false || true
 }
 
 main() {
     print_ifaces
+    print_diagnostics
     test_run test_ip "IP"
-    test_run test_dns "DNS"
+    test_run test_dns "DNS/UDP"
+    test_run test_dns_tcp "DNS/TCP"
     test_run test_http_ip4 "HTTP/IPv4"
-
-    if has_ipv6_public_interfaces; then
+    if has_ipv6_route; then
         test_run test_http_ip6 "HTTP/IPv6"
     else
-        echo
-        colorecho yellow "🟡 IPv6: no interface detected"
+        colorecho yellow "🟡 HTTP/IPv6: skipped (no public IPv6 route)"
     fi
 
     echo
