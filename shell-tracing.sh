@@ -54,7 +54,7 @@ perf::cleanup() {
     else
         rm "$__log_file"
     fi
-    unset __log_threshold __log_start __log_span_start __log_span __log_span_count __log_span_ids __log_file
+    unset __log_performance __log_threshold __log_start __log_span_start __log_span __log_span_count __log_span_ids __log_file
 }
 
 span_start() {
