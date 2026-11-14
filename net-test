@@ -107,7 +107,7 @@ print_diagnostics() {
             run route -n get "$DNS_SERVER" || true
             ;;
         linux*)
-            if ! command -v resolvectl >/dev/null 2>&1 || ! run resolvectl status; then
+            if ! command -v resolvectl >/dev/null 2>&1 || ! run resolvectl status --no-pager; then
                 run cat /etc/resolv.conf || true
             fi
             run ip route get "$DNS_SERVER" || true
